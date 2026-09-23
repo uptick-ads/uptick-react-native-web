@@ -1,6 +1,6 @@
 # Uptick React Native Demo
 
-This repository contains a small Expo app that shows the **Uptick React Native Web SDK** (`uptick-ads/react-native-web-sdk`) on a mock order-confirmation screen, inline and as a native modal.
+This repository contains a small Expo app that shows the **Uptick React Native Web SDK** (`uptick-ads/react-native-web-sdk`) on a mock order-confirmation screen. One `UptickFlow` is mounted in the page flow; it renders inline or as a popup depending on the placement's template on the Uptick side.
 Use it to see the integration working end to end, to try the SDK against a test environment, and as a reference when wiring the component into your own app.
 
 ## Run
@@ -11,15 +11,15 @@ npm install
 npx expo start --ios --android
 ```
 
-Each mode renders against its own placement, because the offer markup follows the placement's template: `EXPO_PUBLIC_UPTICK_INLINE_PLACEMENT` should use an inline template and `EXPO_PUBLIC_UPTICK_MODAL_PLACEMENT` a popup template. When the two placements belong to different integrations, set the per-mode integration ids as well.
+The chips switch between two placements so both presentations can be seen: `EXPO_PUBLIC_UPTICK_INLINE_PLACEMENT` should use an inline template and `EXPO_PUBLIC_UPTICK_POPUP_PLACEMENT` a popup template. When the two placements belong to different integrations, set the per-target integration ids as well.
 
 The mode can also be switched without touching the screen, which is handy for automated checks:
 
 ```
-xcrun simctl openurl booted "exp://<host>:8081/--/?mode=modal"
+xcrun simctl openurl booted "exp://<host>:8081/--/?target=popup"
 ```
 
-`mode` is `inline` or `modal`; `host`, `id` and `placement` override the API host, integration id and placement for that session.
+`target` is `inline` or `popup`; `host`, `id` and `placement` override the API host, integration id and placement for that session.
 
 ## Testing against a local Uptick API
 

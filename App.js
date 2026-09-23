@@ -1,27 +1,27 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Linking, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from "react-native";
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { UptickOffers } from "@uptick/react-native-web-sdk";
+import { UptickFlow } from "@uptick/react-native-web-sdk";
 
-// Demo app for @uptick/react-native-web-sdk: a mock order confirmation screen with the offer inline or as a native modal.
+// Demo app for @uptick/react-native-web-sdk: a mock order confirmation screen with one UptickFlow mounted in the flow of the page.
+// Whether it renders inline or as a popup is decided by the placement's template on the Uptick side; the chips only pick which placement to load.
 
 const DEFAULT_HOST = process.env.EXPO_PUBLIC_UPTICK_HOST || "api.uptick.com";
 
-// The offer markup follows the placement's template, so each mode points at a placement (and optionally an integration) whose template matches it.
-// An integration id left blank for a mode falls back to the shared EXPO_PUBLIC_UPTICK_INTEGRATION_ID.
 const SHARED_INTEGRATION_ID = process.env.EXPO_PUBLIC_UPTICK_INTEGRATION_ID || "";
-const MODES = [
+// Two placements to demonstrate both presentations: one whose template is inline, one whose template is a popup.
+const TARGETS = [
   {
     key: "inline",
-    label: "Inline",
+    label: "Inline placement",
     integrationId: process.env.EXPO_PUBLIC_UPTICK_INLINE_INTEGRATION_ID || SHARED_INTEGRATION_ID,
     placement: process.env.EXPO_PUBLIC_UPTICK_INLINE_PLACEMENT || "checkout",
   },
   {
-    key: "modal",
-    label: "Modal",
-    integrationId: process.env.EXPO_PUBLIC_UPTICK_MODAL_INTEGRATION_ID || SHARED_INTEGRATION_ID,
-    placement: process.env.EXPO_PUBLIC_UPTICK_MODAL_PLACEMENT || "order_confirmation",
+    key: "popup",
+    label: "Popup placement",
+    integrationId: process.env.EXPO_PUBLIC_UPTICK_POPUP_INTEGRATION_ID || SHARED_INTEGRATION_ID,
+    placement: process.env.EXPO_PUBLIC_UPTICK_POPUP_PLACEMENT || "order_confirmation",
   },
 ];
 
@@ -35,7 +35,7 @@ const ORDER = {
   customer_id: "demo-customer-1",
 };
 
-// Headless control for testing: exp://host:port/--/?mode=modal&host=api.example.test&id=<integration id>&placement=order_confirmation
+// Headless control for testing: exp://host:port/--/?target=popup&host=api.example.test&id=<integration id>&placement=order_confirmation
 function parseLaunchParams(url) {
   if (!url) return {};
   const query = url.split("?")[1];
@@ -63,11 +63,12 @@ export default function App() {
 
 function Demo() {
   const insets = useSafeAreaInsets();
-  const [mode, setMode] = useState("inline");
+  const [targetKey, setTargetKey] = useState("inline");
   const [host, setHost] = useState(DEFAULT_HOST);
-  // Launch-URL overrides for the current session; null means "use the mode's configured target".
+  // Launch-URL overrides for the current session; null means "use the selected target".
   const [overrides, setOverrides] = useState({ integrationId: null, placement: null });
-  const target = MODES.find((m) => m.key === mode);
+  const [renderedType, setRenderedType] = useState(null);
+  const target = TARGETS.find((t) => t.key === targetKey);
   const integrationId = overrides.integrationId || target.integrationId;
   const placement = overrides.placement || target.placement;
   const [reloadKey, setReloadKey] = useState(0);
@@ -80,13 +81,14 @@ function Demo() {
     setEvents((prev) => [{ t: Date.now(), name, data }, ...prev].slice(0, 60));
   }, []);
 
-  const reset = useCallback((nextMode) => {
+  const reset = useCallback((nextTarget) => {
     mountedAt.current = Date.now();
     firstOfferAt.current = null;
     setEvents([]);
-    if (nextMode) {
-      setMode(nextMode);
-      // Switching modes returns to that mode's own placement; launch-URL overrides apply to one session only.
+    setRenderedType(null);
+    if (nextTarget) {
+      setTargetKey(nextTarget);
+      // Switching targets returns to that target's own placement; launch-URL overrides apply to one session only.
       setOverrides({ integrationId: null, placement: null });
     }
     setReloadKey((k) => k + 1);
@@ -95,40 +97,28 @@ function Demo() {
   useEffect(() => {
     const apply = (url) => {
       const params = parseLaunchParams(url);
-      if (!params.mode && !params.host && !params.id && !params.placement) return;
+      const key = params.target;
+      if (!key && !params.host && !params.id && !params.placement) return;
       log("launch_params", params);
       if (params.host) setHost(params.host);
       if (params.id || params.placement) setOverrides({ integrationId: params.id || null, placement: params.placement || null });
-      reset(MODES.some((m) => m.key === params.mode) ? params.mode : null);
+      reset(TARGETS.some((t) => t.key === key) ? key : null);
     };
     Linking.getInitialURL().then(apply);
     const subscription = Linking.addEventListener("url", ({ url }) => apply(url));
     return () => subscription.remove();
   }, [log, reset]);
 
-  const onEvent = useCallback(
-    (name, data) => {
-      if (name === "offer_viewed" && firstOfferAt.current == null) {
+  const callback = useCallback(
+    (event, data) => {
+      if (event === "offer_viewed" && firstOfferAt.current == null) {
         firstOfferAt.current = Date.now();
         log("time_to_first_offer_ms", firstOfferAt.current - mountedAt.current);
       }
-      log(name, data);
+      if (event === "render_type" && data) setRenderedType(data.rendered);
+      log(event, data);
     },
     [log]
-  );
-
-  const offers = (
-    <UptickOffers
-      key={`${host}-${integrationId}-${placement}-${mode}-${reloadKey}`}
-      integrationId={integrationId}
-      placement={placement}
-      mode={mode}
-      order={ORDER}
-      host={host}
-      onEvent={onEvent}
-      insets={{ top: insets.top + 16, bottom: insets.bottom + 16 }}
-      style={mode === "inline" ? styles.slot : undefined}
-    />
   );
 
   return (
@@ -147,7 +137,17 @@ function Demo() {
             <Row label="Total" value={ORDER.total_price} bold />
           </View>
 
-          {mode === "inline" && offers}
+          {/* One mount point. Inline placements render here; popup placements present a modal over the screen from this same spot. */}
+          <UptickFlow
+            key={`${host}-${integrationId}-${placement}-${reloadKey}`}
+            integrationId={integrationId}
+            placement={placement}
+            host={host}
+            callback={callback}
+            style={styles.slot}
+            modal={{ insets: { top: insets.top + 16, bottom: insets.bottom + 16 } }}
+            {...ORDER}
+          />
 
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Shipping to</Text>
@@ -159,13 +159,13 @@ function Demo() {
           <View style={styles.controls}>
             <Text style={styles.controlsTitle}>Demo controls</Text>
             <View style={styles.chips}>
-              {MODES.map((m) => (
-                <Chip key={m.key} active={m.key === mode} label={m.label} onPress={() => reset(m.key)} />
+              {TARGETS.map((t) => (
+                <Chip key={t.key} active={t.key === targetKey} label={t.label} onPress={() => reset(t.key)} />
               ))}
               <Chip label="Reload" onPress={() => reset()} />
             </View>
             <Text style={styles.controlsMeta}>
-              {Platform.OS} · {host} · {integrationId ? integrationId.slice(0, 8) : "no integration id"} · {placement}
+              {Platform.OS} · {host} · {integrationId ? integrationId.slice(0, 8) : "no integration id"} · {placement} · rendered {renderedType || "..."}
             </Text>
           </View>
 
@@ -181,7 +181,6 @@ function Demo() {
         </ScrollView>
       </SafeAreaView>
 
-      {mode === "modal" && offers}
     </View>
   );
 }
