@@ -6,12 +6,23 @@ import { UptickOffers } from "@uptick/react-native-web-sdk";
 // Demo app for @uptick/react-native-web-sdk: a mock order confirmation screen with the offer inline or as a native modal.
 
 const DEFAULT_HOST = process.env.EXPO_PUBLIC_UPTICK_HOST || "api.uptick.com";
-const INTEGRATION_ID = process.env.EXPO_PUBLIC_UPTICK_INTEGRATION_ID || "";
-const PLACEMENT = process.env.EXPO_PUBLIC_UPTICK_PLACEMENT || "order_confirmation";
 
+// The offer markup follows the placement's template, so each mode points at a placement (and optionally an integration) whose template matches it.
+// An integration id left blank for a mode falls back to the shared EXPO_PUBLIC_UPTICK_INTEGRATION_ID.
+const SHARED_INTEGRATION_ID = process.env.EXPO_PUBLIC_UPTICK_INTEGRATION_ID || "";
 const MODES = [
-  { key: "inline", label: "Inline" },
-  { key: "modal", label: "Modal" },
+  {
+    key: "inline",
+    label: "Inline",
+    integrationId: process.env.EXPO_PUBLIC_UPTICK_INLINE_INTEGRATION_ID || SHARED_INTEGRATION_ID,
+    placement: process.env.EXPO_PUBLIC_UPTICK_INLINE_PLACEMENT || "checkout",
+  },
+  {
+    key: "modal",
+    label: "Modal",
+    integrationId: process.env.EXPO_PUBLIC_UPTICK_MODAL_INTEGRATION_ID || SHARED_INTEGRATION_ID,
+    placement: process.env.EXPO_PUBLIC_UPTICK_MODAL_PLACEMENT || "order_confirmation",
+  },
 ];
 
 const ORDER = {
@@ -54,8 +65,11 @@ function Demo() {
   const insets = useSafeAreaInsets();
   const [mode, setMode] = useState("inline");
   const [host, setHost] = useState(DEFAULT_HOST);
-  const [integrationId, setIntegrationId] = useState(INTEGRATION_ID);
-  const [placement, setPlacement] = useState(PLACEMENT);
+  // Launch-URL overrides for the current session; null means "use the mode's configured target".
+  const [overrides, setOverrides] = useState({ integrationId: null, placement: null });
+  const target = MODES.find((m) => m.key === mode);
+  const integrationId = overrides.integrationId || target.integrationId;
+  const placement = overrides.placement || target.placement;
   const [reloadKey, setReloadKey] = useState(0);
   const [events, setEvents] = useState([]);
   const mountedAt = useRef(Date.now());
@@ -70,7 +84,11 @@ function Demo() {
     mountedAt.current = Date.now();
     firstOfferAt.current = null;
     setEvents([]);
-    if (nextMode) setMode(nextMode);
+    if (nextMode) {
+      setMode(nextMode);
+      // Switching modes returns to that mode's own placement; launch-URL overrides apply to one session only.
+      setOverrides({ integrationId: null, placement: null });
+    }
     setReloadKey((k) => k + 1);
   }, []);
 
@@ -80,8 +98,7 @@ function Demo() {
       if (!params.mode && !params.host && !params.id && !params.placement) return;
       log("launch_params", params);
       if (params.host) setHost(params.host);
-      if (params.id) setIntegrationId(params.id);
-      if (params.placement) setPlacement(params.placement);
+      if (params.id || params.placement) setOverrides({ integrationId: params.id || null, placement: params.placement || null });
       reset(MODES.some((m) => m.key === params.mode) ? params.mode : null);
     };
     Linking.getInitialURL().then(apply);

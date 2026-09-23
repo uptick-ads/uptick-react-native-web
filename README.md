@@ -11,7 +11,7 @@ npm install
 npx expo start --ios --android
 ```
 
-The presentation must match the placement's template on your Uptick account: pick an inline-template placement to see the inline slot, a popup-template placement to see the modal.
+Each mode renders against its own placement, because the offer markup follows the placement's template: `EXPO_PUBLIC_UPTICK_INLINE_PLACEMENT` should use an inline template and `EXPO_PUBLIC_UPTICK_MODAL_PLACEMENT` a popup template. When the two placements belong to different integrations, set the per-mode integration ids as well.
 
 The mode can also be switched without touching the screen, which is handy for automated checks:
 
