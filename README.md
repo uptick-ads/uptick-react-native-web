@@ -19,7 +19,7 @@ The mode can also be switched without touching the screen, which is handy for au
 xcrun simctl openurl booted "exp://<host>:8081/--/?mode=modal"
 ```
 
-`mode` is `inline` or `modal`; `host` overrides the API host for that session.
+`mode` is `inline` or `modal`; `host`, `id` and `placement` override the API host, integration id and placement for that session.
 
 ## Testing against a local Uptick API
 

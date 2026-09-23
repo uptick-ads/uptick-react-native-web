@@ -24,7 +24,7 @@ const ORDER = {
   customer_id: "demo-customer-1",
 };
 
-// Headless control for testing: exp://host:port/--/?mode=modal&host=api.example.test
+// Headless control for testing: exp://host:port/--/?mode=modal&host=api.example.test&id=<integration id>&placement=order_confirmation
 function parseLaunchParams(url) {
   if (!url) return {};
   const query = url.split("?")[1];
@@ -54,6 +54,8 @@ function Demo() {
   const insets = useSafeAreaInsets();
   const [mode, setMode] = useState("inline");
   const [host, setHost] = useState(DEFAULT_HOST);
+  const [integrationId, setIntegrationId] = useState(INTEGRATION_ID);
+  const [placement, setPlacement] = useState(PLACEMENT);
   const [reloadKey, setReloadKey] = useState(0);
   const [events, setEvents] = useState([]);
   const mountedAt = useRef(Date.now());
@@ -75,9 +77,11 @@ function Demo() {
   useEffect(() => {
     const apply = (url) => {
       const params = parseLaunchParams(url);
-      if (!params.mode && !params.host) return;
+      if (!params.mode && !params.host && !params.id && !params.placement) return;
       log("launch_params", params);
       if (params.host) setHost(params.host);
+      if (params.id) setIntegrationId(params.id);
+      if (params.placement) setPlacement(params.placement);
       reset(MODES.some((m) => m.key === params.mode) ? params.mode : null);
     };
     Linking.getInitialURL().then(apply);
@@ -98,9 +102,9 @@ function Demo() {
 
   const offers = (
     <UptickOffers
-      key={`${host}-${mode}-${reloadKey}`}
-      integrationId={INTEGRATION_ID}
-      placement={PLACEMENT}
+      key={`${host}-${integrationId}-${placement}-${mode}-${reloadKey}`}
+      integrationId={integrationId}
+      placement={placement}
       mode={mode}
       order={ORDER}
       host={host}
@@ -144,7 +148,7 @@ function Demo() {
               <Chip label="Reload" onPress={() => reset()} />
             </View>
             <Text style={styles.controlsMeta}>
-              {Platform.OS} · {host} · {INTEGRATION_ID ? INTEGRATION_ID.slice(0, 8) : "no integration id"}
+              {Platform.OS} · {host} · {integrationId ? integrationId.slice(0, 8) : "no integration id"} · {placement}
             </Text>
           </View>
 
