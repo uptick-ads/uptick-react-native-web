@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "dependencies": {
-    "@uptick/react-native-web-sdk": "github:uptick-ads/react-native-web-sdk",
+    "@uptick-ads/react-native-web-sdk": "^0.2.0",
     "expo": "~57.0.24",
     "expo-status-bar": "~57.0.1",
     "react": "19.2.3",

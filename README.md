@@ -27,7 +27,7 @@ The SDK talks to `https://<host>/v1/places/<id>/embed` and to the assets and API
 
 - **iOS simulator** resolves the host machine's names. Trust the local development CA once with `xcrun simctl keychain booted add-root-cert <ca.pem>`.
 - **Android emulator** does not see local resolver rules, and Expo Go's WebView trusts only system CAs. `tools/resolver_proxy.py` forwards guest traffic through the host's resolver (`adb shell settings put global http_proxy 10.0.2.2:8899`), install the development CA as a user certificate, and build the app with `tools/android_dev_build.sh`, which adds a network security config that trusts user CAs.
-- Working on the SDK and the demo together: `npm install ../react-native-web-sdk` replaces the GitHub dependency with your checkout.
+- Working on the SDK and the demo together: `npm install ../react-native-web-sdk` replaces the published package with your checkout.
 
 ## License
 

@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Linking, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from "react-native";
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { UptickFlow } from "@uptick/react-native-web-sdk";
+import { UptickFlow } from "@uptick-ads/react-native-web-sdk";
 
-// Demo app for @uptick/react-native-web-sdk: a mock order confirmation screen with one UptickFlow mounted in the flow of the page.
+// Demo app for @uptick-ads/react-native-web-sdk: a mock order confirmation screen with one UptickFlow mounted in the flow of the page.
 // Whether it renders inline or as a popup is decided by the placement's template on the Uptick side; the chips only pick which placement to load.
 
 const DEFAULT_HOST = process.env.EXPO_PUBLIC_UPTICK_HOST || "api.uptick.com";
