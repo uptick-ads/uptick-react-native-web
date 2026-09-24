@@ -68,6 +68,7 @@ function Demo() {
   // Launch-URL overrides for the current session; null means "use the selected target".
   const [overrides, setOverrides] = useState({ integrationId: null, placement: null });
   const [renderedType, setRenderedType] = useState(null);
+  const [customized, setCustomized] = useState(false);
   const target = TARGETS.find((t) => t.key === targetKey);
   const integrationId = overrides.integrationId || target.integrationId;
   const placement = overrides.placement || target.placement;
@@ -101,6 +102,7 @@ function Demo() {
       if (!key && !params.host && !params.id && !params.placement) return;
       log("launch_params", params);
       if (params.host) setHost(params.host);
+      if (params.custom != null) setCustomized(params.custom === "1");
       if (params.id || params.placement) setOverrides({ integrationId: params.id || null, placement: params.placement || null });
       reset(TARGETS.some((t) => t.key === key) ? key : null);
     };
@@ -139,13 +141,13 @@ function Demo() {
 
           {/* One mount point. Inline placements render here; popup placements present a modal over the screen from this same spot. */}
           <UptickFlow
-            key={`${host}-${integrationId}-${placement}-${reloadKey}`}
+            key={`${host}-${integrationId}-${placement}-${customized}-${reloadKey}`}
             integrationId={integrationId}
             placement={placement}
             host={host}
             callback={callback}
             style={styles.slot}
-            modal={{ insets: { top: insets.top + 16, bottom: insets.bottom + 16 } }}
+            modal={customized ? { backgroundColor: "rgba(20, 40, 80, 0.6)", insets: { top: insets.top + 16, bottom: insets.bottom + 16 } } : undefined}
             {...ORDER}
           />
 
