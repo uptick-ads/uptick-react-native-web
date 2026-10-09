@@ -1,0 +1,89 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Android: Start emulator",
+      "detail": "Boot Pixel_10a, forward Metro's port, start the resolver proxy for *.test hosts; runs until terminated or stopped",
+      "type": "shell",
+      "command": "${workspaceFolder}/tools/android_emulator.sh start",
+      "runOptions": {
+        "instanceLimit": 1 // Prevents multiple instances from getting stuck
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "android-emulator",
+        "pattern": { "regexp": "^__never_matches__(.)(.)(.)$", "file": 1, "location": 2, "message": 3 },
+        "background": {
+          "activeBegin": true,
+          "beginsPattern": "^__never_matches__$",
+          "endsPattern": " ready: "
+        }
+      }
+    },
+    {
+      "label": "Android: Stop emulator",
+      "detail": "Clear the emulator proxy, stop the resolver proxy and the emulator",
+      "type": "shell",
+      "command": "${workspaceFolder}/tools/android_emulator.sh stop",
+      "problemMatcher": []
+    },
+    {
+      "label": "Android: Build and install dev app",
+      "detail": "Dev build that trusts puma-dev's CA; needs Metro running",
+      "type": "shell",
+      "command": "${workspaceFolder}/tools/android_dev_build.sh",
+      "problemMatcher": []
+    },
+    {
+      "label": "iOS: Start simulator",
+      "detail": "Boot iPhone 18 Pro and trust puma-dev's CA; runs until terminated or stopped",
+      "type": "shell",
+      "command": "${workspaceFolder}/tools/ios_simulator.sh start",
+      "runOptions": {
+        "instanceLimit": 1 // Prevents multiple instances from getting stuck
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "ios-simulator",
+        "pattern": { "regexp": "^__never_matches__(.)(.)(.)$", "file": 1, "location": 2, "message": 3 },
+        "background": {
+          "activeBegin": true,
+          "beginsPattern": "^__never_matches__$",
+          "endsPattern": " ready: "
+        }
+      }
+    },
+    {
+      "label": "iOS: Stop simulator",
+      "type": "shell",
+      "command": "${workspaceFolder}/tools/ios_simulator.sh stop",
+      "problemMatcher": []
+    },
+    {
+      "label": "iOS: Open app in Expo Go",
+      "detail": "Needs the simulator and Metro running; installs Expo Go if missing",
+      "type": "shell",
+      "command": "${workspaceFolder}/tools/ios_simulator.sh open",
+      "problemMatcher": []
+    },
+    {
+      "label": "Start Metro",
+      "detail": "Bundler for both platforms",
+      "type": "shell",
+      "command": "${workspaceFolder}/tools/metro.sh",
+      "runOptions": {
+        "instanceLimit": 1 // Prevents multiple instances from getting stuck
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "metro",
+        "pattern": { "regexp": "^__never_matches__(.)(.)(.)$", "file": 1, "location": 2, "message": 3 },
+        "background": {
+          "activeBegin": true,
+          "beginsPattern": "^__never_matches__$",
+          "endsPattern": "Logs for your project will appear below|LOG\\s+\\[uptick-demo\\]|Metro already running on 8081"
+        }
+      }
+    }
+  ]
+}
