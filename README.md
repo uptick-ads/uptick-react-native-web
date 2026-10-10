@@ -83,6 +83,7 @@ Everything is available from VS Code's **Tasks: Run Task**; each task runs a scr
 | iOS: Stop simulator | `tools/ios_simulator.sh stop` | Shuts the simulator down |
 | Android: Start emulator | `tools/android_emulator.sh start` | Boots the emulator (`AVD=` to change) as `emulator-5554` (`EMULATOR_PORT=` to change), so it works with a phone or another emulator attached; forwards Metro's port and starts the [resolver proxy](#android-emulator). Stays running and shows the proxy log; ending the task, running the stop task or closing the emulator window undoes all of it |
 | Android: Build and install dev app | `tools/android_dev_build.sh` | Builds the app with puma-dev's CA built in and installs it. Needed for the local API on Android |
+| Android: Regenerate native project and rebuild | `CLEAN=1 tools/android_dev_build.sh` | Recreates `android/` from `app.json`, config plugins and the Expo version, then builds and installs. Use after changing any of those |
 | Android: Stop emulator | `tools/android_emulator.sh stop` | Clears the emulator's proxy setting, then stops the proxy and the emulator |
 
 **Always start Metro first and leave it running.** The device tasks don't start it for you.
@@ -102,7 +103,9 @@ On first launch, Expo Go shows a developer menu introduction over the app; tap *
 1. **Start Metro**
 2. **Android: Start emulator**, and wait until it reports `ready:`
 3. Open the app:
-   - **Against a local Uptick API:** run **Android: Build and install dev app**. The first build downloads Gradle and dependencies and takes several minutes; later builds take seconds. After that, relaunch it with the **Uptick Demo** icon or `adb shell monkey -p com.anonymous.rnwebviewdemo 1`. Rebuild only after native changes (new native packages, `app.json`, Expo upgrades).
+   - **Against a local Uptick API:** run **Android: Build and install dev app**. The first build downloads Gradle and dependencies and takes several minutes; later builds take seconds. After that, relaunch it with the **Uptick Demo** icon or `adb shell monkey -p com.anonymous.rnwebviewdemo 1`. JavaScript changes don't need a rebuild; Metro serves them. After a native change, rebuild with the right task:
+     - New or updated native package (`npm install`): **Android: Build and install dev app**.
+     - `app.json`, a config plugin, or an Expo upgrade: **Android: Regenerate native project and rebuild** (`CLEAN=1 tools/android_dev_build.sh`). The plain build task reuses the existing `android/` folder, which is generated from those files only when it's missing, so without regenerating, the change never reaches the app.
    - **Against a public API host, in Expo Go:** the first time, click into the **Start Metro** terminal and press `a`; Expo CLI installs Expo Go on the emulator and opens the app. After that, `adb shell am start -a android.intent.action.VIEW -d exp://127.0.0.1:8081 host.exp.exponent`.
 
 Use the Metro terminal's keys rather than a second `npx expo start --ios` or `--android`: a second Expo CLI finds port 8081 taken and stops at "Use port 8082 instead?". The keys don't work when **Start Metro** reused a Metro that was already running (it says `Metro already running on 8081; using it`); press them in that Metro's own terminal instead.
@@ -128,7 +131,7 @@ adb reverse tcp:8081 tcp:8081                         # repeat after every emula
 npx expo start                                        # own terminal
 python3 tools/resolver_proxy.py 8899 &                # local API only
 adb shell settings put global http_proxy 10.0.2.2:8899
-tools/android_dev_build.sh
+tools/android_dev_build.sh                            # CLEAN=1 after app.json, config plugin or Expo changes
 # when done: adb shell settings put global http_proxy :0
 ```
 

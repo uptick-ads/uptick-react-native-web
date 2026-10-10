@@ -35,6 +35,14 @@
       "problemMatcher": []
     },
     {
+      "label": "Android: Regenerate native project and rebuild",
+      "detail": "After app.json, config plugin or Expo upgrade changes; recreates android/, then builds and installs",
+      "type": "shell",
+      "command": "${workspaceFolder}/tools/android_dev_build.sh",
+      "options": { "env": { "CLEAN": "1" } },
+      "problemMatcher": []
+    },
+    {
       "label": "iOS: Start simulator",
       "detail": "Boot iPhone 18 Pro and trust puma-dev's CA; runs until terminated or stopped",
       "type": "shell",

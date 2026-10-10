@@ -8,7 +8,11 @@ export JAVA_HOME="${JAVA_HOME:-$(mise where java@temurin-21 2>/dev/null)}"
 export ANDROID_HOME="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
 export PATH="$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$PATH"
 
-if [ ! -d android ]; then
+# android/ is generated from app.json, config plugins and the Expo version, and is only created when missing.
+# After changing any of those, CLEAN=1 regenerates it so the change reaches the app; the CA and network config below are re-applied either way.
+if [ "${CLEAN:-}" = 1 ]; then
+  npx expo prebuild --platform android --clean --no-install
+elif [ ! -d android ]; then
   npx expo prebuild --platform android --no-install
 fi
 
