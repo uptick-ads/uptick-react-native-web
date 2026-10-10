@@ -77,11 +77,11 @@ Everything is available from VS Code's **Tasks: Run Task**; each task runs a scr
 
 | Task | Script | What it does |
 | --- | --- | --- |
-| Start Metro | `tools/metro.sh` | Starts the bundler both platforms load the app from. If a Metro is already serving port 8081, it reuses it instead of stopping at Expo's "Use port 8082 instead?" prompt |
+| Start Metro | `tools/metro.sh` | Starts the bundler both platforms load the app from. If this project's Metro is already serving port 8081, it reuses it instead of stopping at Expo's "Use port 8082 instead?" prompt; if another project's is, it stops and says how to free the port |
 | iOS: Start simulator | `tools/ios_simulator.sh start` | Boots the simulator (`IOS_DEVICE=` to change), opens its window and trusts puma-dev's CA. Stays running; ending the task shuts the simulator down |
 | iOS: Open app in Expo Go | `tools/ios_simulator.sh open` | Installs Expo Go if the simulator lacks it, then opens the app. Takes a path, e.g. `"/--/?target=popup"` |
 | iOS: Stop simulator | `tools/ios_simulator.sh stop` | Shuts the simulator down |
-| Android: Start emulator | `tools/android_emulator.sh start` | Boots the emulator (`AVD=` to change), forwards Metro's port and starts the [resolver proxy](#android-emulator). Stays running and shows the proxy log; ending the task, running the stop task or closing the emulator window undoes all of it |
+| Android: Start emulator | `tools/android_emulator.sh start` | Boots the emulator (`AVD=` to change) as `emulator-5554` (`EMULATOR_PORT=` to change), so it works with a phone or another emulator attached; forwards Metro's port and starts the [resolver proxy](#android-emulator). Stays running and shows the proxy log; ending the task, running the stop task or closing the emulator window undoes all of it |
 | Android: Build and install dev app | `tools/android_dev_build.sh` | Builds the app with puma-dev's CA built in and installs it. Needed for the local API on Android |
 | Android: Stop emulator | `tools/android_emulator.sh stop` | Clears the emulator's proxy setting, then stops the proxy and the emulator |
 
@@ -91,7 +91,9 @@ Everything is available from VS Code's **Tasks: Run Task**; each task runs a scr
 
 1. **Start Metro**
 2. **iOS: Start simulator**, and wait until it reports `ready:`
-3. **iOS: Open app in Expo Go**
+3. Open the app:
+   - **The first time on this Mac:** click into the **Start Metro** terminal and press `i`. Expo CLI downloads Expo Go, installs it on the booted simulator and opens the app. **iOS: Open app in Expo Go** can't do this step, because it installs Expo Go only from Expo CLI's download cache, which is empty until then.
+   - **Every time after that:** **iOS: Open app in Expo Go**. It also reinstalls Expo Go from the cache on a simulator that doesn't have it.
 
 On first launch, Expo Go shows a developer menu introduction over the app; tap **Continue**.
 
@@ -101,28 +103,29 @@ On first launch, Expo Go shows a developer menu introduction over the app; tap *
 2. **Android: Start emulator**, and wait until it reports `ready:`
 3. Open the app:
    - **Against a local Uptick API:** run **Android: Build and install dev app**. The first build downloads Gradle and dependencies and takes several minutes; later builds take seconds. After that, relaunch it with the **Uptick Demo** icon or `adb shell monkey -p com.anonymous.rnwebviewdemo 1`. Rebuild only after native changes (new native packages, `app.json`, Expo upgrades).
-   - **Against a public API host, in Expo Go:** `adb shell am start -a android.intent.action.VIEW -d exp://127.0.0.1:8081 host.exp.exponent`. The first time, run `npx expo start --android` instead so Expo installs Expo Go.
+   - **Against a public API host, in Expo Go:** the first time, click into the **Start Metro** terminal and press `a`; Expo CLI installs Expo Go on the emulator and opens the app. After that, `adb shell am start -a android.intent.action.VIEW -d exp://127.0.0.1:8081 host.exp.exponent`.
+
+Use the Metro terminal's keys rather than a second `npx expo start --ios` or `--android`: a second Expo CLI finds port 8081 taken and stops at "Use port 8082 instead?". The keys don't work when **Start Metro** reused a Metro that was already running (it says `Metro already running on 8081; using it`); press them in that Metro's own terminal instead.
 
 On a fresh launch the events panel often shows `webview_error net::ERR_NAME_NOT_RESOLVED`; tap **Reload**. See [Troubleshooting](#troubleshooting) for why.
 
 ### Without VS Code
 
-The same steps by hand:
+The same steps by hand. Boot the device first, then start Metro in its own terminal and leave it running; the first time, press `i` (iOS) or `a` (Android) in that terminal to install Expo Go and open the app.
 
 ```
-npx expo start                                        # terminal 1, leave running
-
 # iOS
 xcrun simctl boot "iPhone 18 Pro"
 open -a DeviceHub                                     # Simulator.app before Xcode 27
 xcrun simctl keychain booted add-root-cert ~/Library/Application\ Support/io.puma.dev/cert.pem
-npx expo start --ios                                  # first time, installs Expo Go
-xcrun simctl openurl booted exp://127.0.0.1:8081      # afterwards
+npx expo start                                        # own terminal; first time, press i in it
+xcrun simctl openurl booted exp://127.0.0.1:8081      # later runs, from another terminal
 
 # Android
 emulator -avd Pixel_10a &
 adb wait-for-device
 adb reverse tcp:8081 tcp:8081                         # repeat after every emulator restart
+npx expo start                                        # own terminal
 python3 tools/resolver_proxy.py 8899 &                # local API only
 adb shell settings put global http_proxy 10.0.2.2:8899
 tools/android_dev_build.sh
@@ -166,7 +169,7 @@ Nothing extra. The simulator resolves the Mac's names, including `*.test`, and E
 
 The emulator doesn't see the Mac's `.test` resolver, and Expo Go's WebView trusts only system CAs, so Android needs two things, both handled by the tasks:
 
-- **Name resolution:** `tools/resolver_proxy.py` is a small proxy on the Mac that resolves names for the emulator; **Android: Start emulator** starts it and sets the emulator's proxy to `10.0.2.2:8899`. Its log shows `CONNECT api.uptick.test:443 -> 127.0.0.1` when the WebView goes through it.
+- **Name resolution:** `tools/resolver_proxy.py` is a small proxy on the Mac that resolves names for the emulator. It listens on `127.0.0.1` only, which the emulator reaches as `10.0.2.2`, so it isn't an open proxy to the rest of the network; **Android: Start emulator** starts it and sets the emulator's proxy to `10.0.2.2:8899`. Its log shows `CONNECT api.uptick.test:443 -> 127.0.0.1` when the WebView goes through it.
 - **Certificate trust:** **Android: Build and install dev app** builds the app with puma-dev's CA built in (from `PUMA_DEV_CA`, default the path above), so no certificate has to be installed in the emulator's Settings, which needs root on Google Play images anyway.
 
 While the proxy setting is on and the proxy isn't running, the emulator has no network at all. **Android: Stop emulator** clears it; by hand, `adb shell settings put global http_proxy :0`.
@@ -208,7 +211,9 @@ EXPO_PUBLIC_UPTICK_POPUP_PLACEMENT=order_confirmation
 | --- | --- | --- |
 | `expo start` prints `Unable to run simctl … code 72`, or `xcrun: unable to find utility "simctl"` | Command line tools point at the standalone Command Line Tools, not Xcode | `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer` |
 | `open -a Simulator` fails | Xcode 27 replaced Simulator.app with DeviceHub | `open -a DeviceHub`; the iOS task handles both |
-| Metro task stops at `Use port 8082 instead? (Y/n)` | Another Metro already holds 8081 | Use the **Start Metro** task, which reuses it, or stop the other one: `lsof -ti tcp:8081 \| xargs kill` |
+| Expo stops at `Use port 8082 instead? (Y/n)` | A second Expo CLI was started while Metro holds 8081, e.g. `npx expo start --ios` next to the Start Metro task | Press `i` or `a` in the running Metro's terminal instead, or stop it first: `lsof -ti tcp:8081 \| xargs kill` |
+| Start Metro says port 8081 is held by something other than this project's Metro | Another project's Metro, or another server, is on 8081 | Stop it: `lsof -ti tcp:8081 \| xargs kill`, then rerun the task |
+| **iOS: Open app in Expo Go** says Expo CLI hasn't downloaded Expo Go yet | First run on this Mac | Press `i` in the Start Metro terminal once |
 | Edits to `.env.local` have no effect | Expo reads it only at startup | Restart Metro |
 | Edits to the code don't reload | Metro was started with `CI=1`, which disables watching | Restart it with a plain `npx expo start` |
 | `npx: command not found` from a task or script | The shell didn't load mise | `tools/metro.sh` adds mise's shims itself; elsewhere, check `eval "$(mise activate zsh)"` is in `~/.zshrc` |

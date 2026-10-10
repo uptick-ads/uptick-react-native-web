@@ -3,6 +3,7 @@
 # start: boots the simulator (IOS_DEVICE="iPhone 18 Pro" by default), opens its window and trusts puma-dev's CA,
 #   then stays in the foreground until the simulator shuts down or the script is interrupted, and shuts it down on the way out.
 # open [path]: waits for Metro, installs Expo Go from Expo CLI's cache if the simulator lacks it, and opens the app (e.g. open "/--/?target=popup").
+#   On a machine where Expo CLI hasn't downloaded Expo Go yet, press i in the Metro terminal once instead.
 # stop: shuts the simulator down.
 # Unlike Android, no proxy or dev build is needed: the simulator resolves *.test through the host, and Expo Go's WebView trusts the simulator keychain.
 set -euo pipefail
@@ -65,6 +66,7 @@ start() {
 
 open_app() {
   UDID="$(device_udid)"
+  [ -n "$UDID" ] || { echo "No available simulator named \"$IOS_DEVICE\"; see xcrun simctl list devices available" >&2; exit 1; }
   is_booted "$UDID" || { echo "$IOS_DEVICE isn't booted; run the iOS: Start simulator task" >&2; exit 1; }
 
   for _ in $(seq 1 60); do
@@ -74,9 +76,14 @@ open_app() {
   curl -s -m 2 http://localhost:8081/status | grep -q running || { echo "Metro isn't running on 8081; run the Start Metro task" >&2; exit 1; }
 
   if ! xcrun simctl get_app_container "$UDID" host.exp.Exponent >/dev/null 2>&1; then
-    local expo_go
-    expo_go="$(ls -d "$HOME"/.expo/ios-simulator-app-cache/Expo-Go-*.app 2>/dev/null | sort -V | tail -1)"
-    [ -n "$expo_go" ] || { echo "Expo Go isn't installed and Expo CLI hasn't cached it yet; run npx expo start --ios once" >&2; exit 1; }
+    local cached=() expo_go=""
+    shopt -s nullglob
+    cached=("$HOME"/.expo/ios-simulator-app-cache/Expo-Go-*.app)
+    shopt -u nullglob
+    if [ ${#cached[@]} -gt 0 ]; then
+      expo_go="$(printf '%s\n' "${cached[@]}" | sort -V | tail -1)"
+    fi
+    [ -n "$expo_go" ] || { echo "Expo Go isn't installed and Expo CLI hasn't downloaded it yet; press i in the Start Metro terminal once" >&2; exit 1; }
     echo "Installing $(basename "$expo_go")"
     xcrun simctl install "$UDID" "$expo_go"
   fi

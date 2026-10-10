@@ -4,6 +4,7 @@
 The emulator forwards guest DNS to the host's system nameservers, which never see puma-dev's `.test` resolver.
 Pointing the emulator at this proxy makes the host resolve names instead, so local development hostnames reach the server on 127.0.0.1.
 Run: python3 tools/resolver_proxy.py 8899, then: adb shell settings put global http_proxy 10.0.2.2:8899
+It listens on loopback only: the emulator's 10.0.2.2 arrives at the host's 127.0.0.1, and anything wider would offer an open proxy to the network.
 """
 import select
 import socket
@@ -73,9 +74,9 @@ def handle(client):
 def main():
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server.bind(("0.0.0.0", PORT))
+    server.bind(("127.0.0.1", PORT))
     server.listen(64)
-    print(f"resolver proxy listening on 0.0.0.0:{PORT}", flush=True)
+    print(f"resolver proxy listening on 127.0.0.1:{PORT}", flush=True)
     while True:
         client, _ = server.accept()
         threading.Thread(target=handle, args=(client,), daemon=True).start()

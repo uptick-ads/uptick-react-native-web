@@ -10,17 +10,20 @@ export PATH="$ANDROID_HOME/emulator:$ANDROID_HOME/platform-tools:$PATH"
 
 AVD="${AVD:-Pixel_10a}"
 PROXY_PORT="${PROXY_PORT:-8899}"
+# The emulator's console port fixes its adb serial, so every adb call targets this emulator even with a phone or another emulator attached.
+EMULATOR_PORT="${EMULATOR_PORT:-5554}"
+export ANDROID_SERIAL="emulator-$EMULATOR_PORT"
 STATE_DIR="${TMPDIR:-/tmp}/uptick-android"
 mkdir -p "$STATE_DIR"
 
-running_emulator() {
-  adb devices | awk '/^emulator-[0-9]+\tdevice$/ { print $1; exit }'
+emulator_running() {
+  adb devices | grep -q "^$ANDROID_SERIAL[[:space:]]device$"
 }
 
 start() {
-  if [ -z "$(running_emulator)" ]; then
-    echo "Booting $AVD"
-    nohup emulator -avd "$AVD" >"$STATE_DIR/emulator.log" 2>&1 &
+  if ! emulator_running; then
+    echo "Booting $AVD as $ANDROID_SERIAL"
+    nohup emulator -avd "$AVD" -port "$EMULATOR_PORT" >"$STATE_DIR/emulator.log" 2>&1 &
   fi
   adb wait-for-device
   for _ in $(seq 1 120); do
@@ -38,11 +41,11 @@ start() {
   fi
   adb shell settings put global http_proxy "10.0.2.2:$PROXY_PORT"
 
-  echo "$(running_emulator) ready: Metro on 8081 forwarded, proxy 10.0.2.2:$PROXY_PORT (log: $STATE_DIR/resolver_proxy.log)"
+  echo "$ANDROID_SERIAL ready: Metro on 8081 forwarded, proxy 10.0.2.2:$PROXY_PORT (log: $STATE_DIR/resolver_proxy.log)"
 
   tail -n 0 -f "$STATE_DIR/resolver_proxy.log" &
   TAIL_PID=$!
-  while [ -n "$(running_emulator)" ]; do
+  while emulator_running; do
     sleep 2
   done
   echo "Emulator exited"
@@ -56,12 +59,12 @@ cleanup() {
 }
 
 stop() {
-  if [ -n "$(running_emulator)" ]; then
+  if emulator_running; then
     adb shell settings put global http_proxy :0
     adb emu kill >/dev/null
     # adb keeps listing the device while it shuts down, which would make an immediate `start` skip the boot.
     for _ in $(seq 1 30); do
-      [ -z "$(running_emulator)" ] && break
+      emulator_running || break
       sleep 1
     done
     echo "Emulator stopped"

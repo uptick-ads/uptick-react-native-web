@@ -14,7 +14,7 @@
         "owner": "android-emulator",
         "pattern": { "regexp": "^__never_matches__(.)(.)(.)$", "file": 1, "location": 2, "message": 3 },
         "background": {
-          "activeBegin": true,
+          "activeOnStart": true,
           "beginsPattern": "^__never_matches__$",
           "endsPattern": " ready: "
         }
@@ -47,7 +47,7 @@
         "owner": "ios-simulator",
         "pattern": { "regexp": "^__never_matches__(.)(.)(.)$", "file": 1, "location": 2, "message": 3 },
         "background": {
-          "activeBegin": true,
+          "activeOnStart": true,
           "beginsPattern": "^__never_matches__$",
           "endsPattern": " ready: "
         }
@@ -79,7 +79,7 @@
         "owner": "metro",
         "pattern": { "regexp": "^__never_matches__(.)(.)(.)$", "file": 1, "location": 2, "message": 3 },
         "background": {
-          "activeBegin": true,
+          "activeOnStart": true,
           "beginsPattern": "^__never_matches__$",
           "endsPattern": "Logs for your project will appear below|LOG\\s+\\[uptick-demo\\]|Metro already running on 8081"
         }
