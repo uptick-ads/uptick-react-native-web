@@ -20,7 +20,41 @@ emulator_running() {
   adb devices | grep -q "^$ANDROID_SERIAL[[:space:]]device$"
 }
 
+proxy_listener_pid() {
+  lsof -nP -iTCP:"$PROXY_PORT" -sTCP:LISTEN -t 2>/dev/null | head -1 || true
+}
+
+# Makes sure our resolver proxy, and nothing else, is listening on PROXY_PORT, and records its pid for stop.
+ensure_proxy() {
+  local pid
+  pid="$(proxy_listener_pid)"
+  if [ -n "$pid" ]; then
+    # Ours, whether tracked or orphaned by an earlier run that lost its pid file: adopt it so stop can clean it up.
+    if ps -o command= -p "$pid" | grep -q 'tools/resolver_proxy.py'; then
+      echo "$pid" >"$STATE_DIR/resolver_proxy.pid"
+      return
+    fi
+    echo "Port $PROXY_PORT is in use by $(ps -o comm= -p "$pid") (pid $pid), not the resolver proxy; stop it or set PROXY_PORT" >&2
+    exit 1
+  fi
+
+  nohup python3 tools/resolver_proxy.py "$PROXY_PORT" >"$STATE_DIR/resolver_proxy.log" 2>&1 &
+  pid=$!
+  echo "$pid" >"$STATE_DIR/resolver_proxy.pid"
+  for _ in $(seq 1 20); do
+    [ "$(proxy_listener_pid)" = "$pid" ] && return
+    kill -0 "$pid" 2>/dev/null || break
+    sleep 0.25
+  done
+  echo "Resolver proxy failed to start on $PROXY_PORT:" >&2
+  tail -5 "$STATE_DIR/resolver_proxy.log" >&2
+  exit 1
+}
+
 start() {
+  # Before booting, so a port conflict fails fast.
+  ensure_proxy
+
   if ! emulator_running; then
     echo "Booting $AVD as $ANDROID_SERIAL"
     nohup emulator -avd "$AVD" -port "$EMULATOR_PORT" >"$STATE_DIR/emulator.log" 2>&1 &
@@ -34,11 +68,8 @@ start() {
 
   adb reverse tcp:8081 tcp:8081 >/dev/null
 
-  if ! lsof -nP -iTCP:"$PROXY_PORT" -sTCP:LISTEN >/dev/null; then
-    nohup python3 tools/resolver_proxy.py "$PROXY_PORT" >"$STATE_DIR/resolver_proxy.log" 2>&1 &
-    echo $! >"$STATE_DIR/resolver_proxy.pid"
-    sleep 1
-  fi
+  # Re-check: the proxy may have died during the boot, and pointing the emulator at a dead port leaves it without network.
+  [ "$(proxy_listener_pid)" = "$(cat "$STATE_DIR/resolver_proxy.pid")" ] || { echo "Resolver proxy is no longer listening on $PROXY_PORT; see $STATE_DIR/resolver_proxy.log" >&2; exit 1; }
   adb shell settings put global http_proxy "10.0.2.2:$PROXY_PORT"
 
   echo "$ANDROID_SERIAL ready: Metro on 8081 forwarded, proxy 10.0.2.2:$PROXY_PORT (log: $STATE_DIR/resolver_proxy.log)"
@@ -70,9 +101,14 @@ stop() {
     echo "Emulator stopped"
   fi
   if [ -f "$STATE_DIR/resolver_proxy.pid" ]; then
-    kill "$(cat "$STATE_DIR/resolver_proxy.pid")" 2>/dev/null || true
+    local pid
+    pid="$(cat "$STATE_DIR/resolver_proxy.pid")"
+    # A stale pid file may name a pid since reused by something else.
+    if ps -o command= -p "$pid" 2>/dev/null | grep -q 'tools/resolver_proxy.py'; then
+      kill "$pid"
+      echo "Resolver proxy stopped"
+    fi
     rm -f "$STATE_DIR/resolver_proxy.pid"
-    echo "Resolver proxy stopped"
   fi
 }
 
