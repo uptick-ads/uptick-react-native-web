@@ -2,6 +2,51 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "Start Metro",
+      "detail": "Bundler for both platforms",
+      "type": "shell",
+      "command": "${workspaceFolder}/tools/metro.sh",
+      "runOptions": {
+        "runOn": "folderOpen",
+        "instanceLimit": 1 // Prevents multiple instances from getting stuck
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "metro",
+        "pattern": { "regexp": "^__never_matches__(.)(.)(.)$", "file": 1, "location": 2, "message": 3 },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "^__never_matches__$",
+          "endsPattern": "Logs for your project will appear below|LOG\\s+\\[uptick-demo\\]|Metro already running on 8081"
+        }
+      }
+    },
+    {
+      "label": "Android: Start proxy",
+      "detail": "Resolver proxy for *.test hosts on 8899; skips when it's already running; starts when the folder opens",
+      "type": "shell",
+      "command": "${workspaceFolder}/tools/android_proxy.sh",
+      "runOptions": {
+        "runOn": "folderOpen",
+        "instanceLimit": 1 // Prevents multiple instances from getting stuck
+      },
+      "options": {
+        "statusbar": {
+          "hide" : true
+        }
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "android-proxy",
+        "pattern": { "regexp": "^__never_matches__(.)(.)(.)$", "file": 1, "location": 2, "message": 3 },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "^__never_matches__$",
+          "endsPattern": "resolver proxy listening|already running"
+        }
+      }
+    },
+    {
       "label": "Android: Start emulator",
       "detail": "Boot Pixel_10a, forward Metro's port, start the resolver proxy for *.test hosts; runs until terminated or stopped",
       "type": "shell",
@@ -32,15 +77,25 @@
       "detail": "Dev build that trusts puma-dev's CA; needs Metro running",
       "type": "shell",
       "command": "${workspaceFolder}/tools/android_dev_build.sh",
-      "problemMatcher": []
+      "problemMatcher": [],
+      "options": {
+        "statusbar": {
+          "hide" : true
+        }
+      }
     },
     {
       "label": "Android: Regenerate native project and rebuild",
       "detail": "After app.json, config plugin or Expo upgrade changes; recreates android/, then builds and installs",
       "type": "shell",
       "command": "${workspaceFolder}/tools/android_dev_build.sh",
-      "options": { "env": { "CLEAN": "1" } },
-      "problemMatcher": []
+      "problemMatcher": [],
+      "options": {
+        "env": { "CLEAN": "1" },
+        "statusbar": {
+          "hide" : true
+        }
+      }
     },
     {
       "label": "iOS: Start simulator",
@@ -62,12 +117,6 @@
       }
     },
     {
-      "label": "iOS: Stop simulator",
-      "type": "shell",
-      "command": "${workspaceFolder}/tools/ios_simulator.sh stop",
-      "problemMatcher": []
-    },
-    {
       "label": "iOS: Open app in Expo Go",
       "detail": "Needs the simulator and Metro running; installs Expo Go if missing",
       "type": "shell",
@@ -75,21 +124,40 @@
       "problemMatcher": []
     },
     {
-      "label": "Start Metro",
-      "detail": "Bundler for both platforms",
+      "label": "iOS: Stop simulator",
       "type": "shell",
-      "command": "${workspaceFolder}/tools/metro.sh",
-      "runOptions": {
-        "instanceLimit": 1 // Prevents multiple instances from getting stuck
-      },
+      "command": "${workspaceFolder}/tools/ios_simulator.sh stop",
+      "problemMatcher": []
+    },
+    {
+      "label": "SDK: npm link",
+      "detail": "Link the local @uptick-ads/react-native-web-sdk checkout (../react-native-web-sdk) and restart Metro with --clear; runs until Metro stops",
+      "type": "shell",
+      "command": "${workspaceFolder}/tools/sdk_link.sh link",
       "isBackground": true,
       "problemMatcher": {
-        "owner": "metro",
+        "owner": "sdk-link",
         "pattern": { "regexp": "^__never_matches__(.)(.)(.)$", "file": 1, "location": 2, "message": 3 },
         "background": {
           "activeOnStart": true,
           "beginsPattern": "^__never_matches__$",
-          "endsPattern": "Logs for your project will appear below|LOG\\s+\\[uptick-demo\\]|Metro already running on 8081"
+          "endsPattern": "Logs for your project will appear below|LOG\\s+\\[uptick-demo\\]"
+        }
+      }
+    },
+    {
+      "label": "SDK: npm unlink",
+      "detail": "Remove the local SDK link, restore the registry copy and restart Metro with --clear; runs until Metro stops",
+      "type": "shell",
+      "command": "${workspaceFolder}/tools/sdk_link.sh unlink",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "sdk-link",
+        "pattern": { "regexp": "^__never_matches__(.)(.)(.)$", "file": 1, "location": 2, "message": 3 },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "^__never_matches__$",
+          "endsPattern": "Logs for your project will appear below|LOG\\s+\\[uptick-demo\\]"
         }
       }
     }

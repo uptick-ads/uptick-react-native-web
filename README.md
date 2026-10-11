@@ -77,16 +77,19 @@ Everything is available from VS Code's **Tasks: Run Task**; each task runs a scr
 
 | Task | Script | What it does |
 | --- | --- | --- |
-| Start Metro | `tools/metro.sh` | Starts the bundler both platforms load the app from. If this project's Metro is already serving port 8081, it reuses it instead of stopping at Expo's "Use port 8082 instead?" prompt; if another project's is, it stops and says how to free the port |
+| Start Metro | `tools/metro.sh` | Starts the bundler both platforms load the app from. Runs when the folder opens. If this project's Metro is already serving port 8081, it reuses it instead of stopping at Expo's "Use port 8082 instead?" prompt; if another project's is, it stops and says how to free the port |
+| Android: Start proxy | `tools/android_proxy.sh` | Runs the [resolver proxy](#android-emulator) on port 8899 (`PROXY_PORT=` to change). Runs when the folder opens and does nothing if the proxy is already up |
+| SDK: npm link | `tools/sdk_link.sh link` | Links the local SDK checkout (`../react-native-web-sdk`, or `SDK_DIR=`) into this app, then restarts Metro with `--clear`. See [Working on the SDK](#working-on-the-sdk-and-the-demo-together) |
+| SDK: npm unlink | `tools/sdk_link.sh unlink` | Removes the local link, restores the registry copy from `package-lock.json`, then restarts Metro with `--clear` |
 | iOS: Start simulator | `tools/ios_simulator.sh start` | Boots the simulator (`IOS_DEVICE=` to change), opens its window and trusts puma-dev's CA. Stays running; ending the task shuts the simulator down |
 | iOS: Open app in Expo Go | `tools/ios_simulator.sh open` | Installs Expo Go if the simulator lacks it, then opens the app. Takes a path, e.g. `"/--/?target=popup"` |
 | iOS: Stop simulator | `tools/ios_simulator.sh stop` | Shuts the simulator down |
-| Android: Start emulator | `tools/android_emulator.sh start` | Boots the emulator (`AVD=` to change) as `emulator-5554` (`EMULATOR_PORT=` to change), so it works with a phone or another emulator attached; forwards Metro's port and starts the [resolver proxy](#android-emulator). Stays running and shows the proxy log; ending the task, running the stop task or closing the emulator window undoes all of it |
+| Android: Start emulator | `tools/android_emulator.sh start` | Boots the emulator (`AVD=` to change) as `emulator-5554` (`EMULATOR_PORT=` to change), so it works with a phone or another emulator attached; forwards Metro's port and points the emulator at the [resolver proxy](#android-emulator), starting the proxy only if it isn't already running. Stays running and shows the proxy log; ending the task, running the stop task or closing the emulator window undoes all of it |
 | Android: Build and install dev app | `tools/android_dev_build.sh` | Builds the app with puma-dev's CA built in and installs it. Needed for the local API on Android |
 | Android: Regenerate native project and rebuild | `CLEAN=1 tools/android_dev_build.sh` | Recreates `android/` from `app.json`, config plugins and the Expo version, then builds and installs. Use after changing any of those |
 | Android: Stop emulator | `tools/android_emulator.sh stop` | Clears the emulator's proxy setting, then stops the proxy and the emulator |
 
-**Always start Metro first and leave it running.** The device tasks don't start it for you.
+**Metro and the Android proxy start when the folder opens**, and the device tasks don't start Metro for you, so leave Metro running. VS Code asks once whether to allow automatic tasks on folder open; accept it, or they won't start on load. Run **SDK: npm link** or **SDK: npm unlink** and they restart Metro for you.
 
 ### iOS
 
@@ -172,7 +175,7 @@ Nothing extra. The simulator resolves the Mac's names, including `*.test`, and E
 
 The emulator doesn't see the Mac's `.test` resolver, and Expo Go's WebView trusts only system CAs, so Android needs two things, both handled by the tasks:
 
-- **Name resolution:** `tools/resolver_proxy.py` is a small proxy on the Mac that resolves names for the emulator. It listens on `127.0.0.1` only, which the emulator reaches as `10.0.2.2`, so it isn't an open proxy to the rest of the network; **Android: Start emulator** starts it and sets the emulator's proxy to `10.0.2.2:8899`. Its log shows `CONNECT api.uptick.test:443 -> 127.0.0.1` when the WebView goes through it.
+- **Name resolution:** `tools/resolver_proxy.py` is a small proxy on the Mac that resolves names for the emulator. It listens on `127.0.0.1` only, which the emulator reaches as `10.0.2.2`, so it isn't an open proxy to the rest of the network. **Android: Start proxy** runs it when the folder opens, and **Android: Start emulator** sets the emulator's proxy to `10.0.2.2:8899` and starts the proxy if it's missing. Its log shows `CONNECT api.uptick.test:443 -> 127.0.0.1` when the WebView goes through it.
 - **Certificate trust:** **Android: Build and install dev app** builds the app with puma-dev's CA built in (from `PUMA_DEV_CA`, default the path above), so no certificate has to be installed in the emulator's Settings, which needs root on Google Play images anyway.
 
 While the proxy setting is on and the proxy isn't running, the emulator has no network at all. **Android: Stop emulator** clears it; by hand, `adb shell settings put global http_proxy :0`.
@@ -232,10 +235,14 @@ EXPO_PUBLIC_UPTICK_POPUP_PLACEMENT=order_confirmation
 | `webview_http_error` with status 404 | The integration id doesn't exist on that host | [Choose an integration](#choosing-an-integration-and-placements) |
 | `422 Integration placement not found` | The integration has no placement with that name, e.g. `checkout` | Use one it has, usually `order_confirmation` |
 | `dashboard.uptick.test` redirects to sign in | The dashboard needs a login | Sign in, or use the `psql` query above |
+| Metro: `TreeFS: Could not add directory node_modules/@uptick-ads/react-native-web-sdk … already exists in the file map as a file` | Metro's cached file map still has the package from a previous link or symlink | Run **SDK: npm unlink** (or **SDK: npm link**), which restarts Metro with `--clear`; or restart Metro with `npx expo start --clear` |
+| Android: `Android: Start proxy` isn't running after opening the folder | VS Code hasn't allowed automatic tasks for this workspace | Accept the prompt, or run the task from **Tasks: Run Task** |
 
 ## Working on the SDK and the demo together
 
-`npm install ../react-native-web-sdk` replaces the published package with your checkout.
+To run the demo against a local checkout of the SDK, use the **SDK: npm link** task. It expects the checkout at `../react-native-web-sdk` (set `SDK_DIR=` to use another path), runs `npm link` in the checkout and then in this app, and restarts Metro with `--clear` so the new resolution takes effect. **SDK: npm unlink** removes the link and restores the registry copy pinned in `package-lock.json`, then restarts Metro the same way.
+
+A linked checkout brings its own `node_modules`, including its own copies of `react` and `react-native`, which can differ from the app's versions. If the app shows hook errors or a native view registered twice after linking, the two copies are the likely cause; the fix is to remove the SDK checkout's `node_modules` copies of those packages, or to keep the SDK's self-dependency out of its `package.json`. Unlink when you're done to go back to the pinned registry copy.
 
 ## License
 
