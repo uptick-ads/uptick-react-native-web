@@ -10,7 +10,33 @@ cd "$(dirname "$0")/.."
 PACKAGE="@uptick-ads/react-native-web-sdk"
 SDK_DIR="${SDK_DIR:-$(cd .. && pwd)/react-native-web-sdk}"
 
-# Stops whatever holds 8081 and waits for it to close, so metro.sh doesn't reuse the stale Metro.
+# The slug Metro's manifest reports, so a Metro started from another project isn't mistaken for this one.
+served_slug() {
+  curl -s -m 5 -H 'expo-platform: ios' http://localhost:8081/ |
+    python3 -c 'import json, sys; print(json.load(sys.stdin)["extra"]["expoClient"]["slug"])' 2>/dev/null || true
+}
+
+project_slug() {
+  python3 -c 'import json; print(json.load(open("app.json"))["expo"]["slug"])'
+}
+
+metro_running() {
+  curl -s -m 2 http://localhost:8081/status | grep -q packager-status:running
+}
+
+# Refuses before anything changes unless whatever holds 8081 is this project's Metro, the same check metro.sh makes.
+check_metro() {
+  local pid serving
+  pid="$(lsof -nP -iTCP:8081 -sTCP:LISTEN -t 2>/dev/null | head -1 || true)"
+  [ -n "$pid" ] || return 0
+  serving="$(served_slug)"
+  if ! metro_running || [ "$serving" != "$(project_slug)" ]; then
+    echo "Port 8081 is held by something other than this project's Metro (${serving:-unknown}); stop it and rerun this task" >&2
+    exit 1
+  fi
+}
+
+# Stops this project's Metro, checked by check_metro, and waits for 8081 to close, so metro.sh doesn't reuse the stale Metro.
 stop_metro() {
   local pid
   pid="$(lsof -nP -iTCP:8081 -sTCP:LISTEN -t 2>/dev/null | head -1 || true)"
@@ -31,6 +57,7 @@ restart_metro() {
 }
 
 link() {
+  check_metro
   [ -f "$SDK_DIR/package.json" ] || { echo "No SDK checkout at $SDK_DIR; set SDK_DIR" >&2; exit 1; }
   (cd "$SDK_DIR" && npm link)
   npm link "$PACKAGE"
@@ -39,6 +66,7 @@ link() {
 }
 
 unlink() {
+  check_metro
   npm unlink "$PACKAGE" --no-save || true
   npm install
   echo "Restored the registry copy of $PACKAGE"

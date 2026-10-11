@@ -18,11 +18,13 @@ brew install mise
 echo 'eval "$(mise activate zsh)"' >> ~/.zshrc    # skip if ~/.zshrc already has it
 exec zsh
 
-mise use -g node@22
+mise use -g node@24.13.0
 mise use -g java@temurin-21
 ```
 
-Check: `node -v` prints v22, `java -version` prints 21, and `echo $JAVA_HOME` points into `~/.local/share/mise/installs/java`.
+Check: `node -v` prints v24.13.0, `java -version` prints 21, and `echo $JAVA_HOME` points into `~/.local/share/mise/installs/java`.
+
+The Node version must match the same version used for the `react-native-web-sdk` project in order for the `npm link @uptick-ads/react-native-web-sdk` to work correctly.
 
 Use JDK 17 or 21. Android Studio ships JDK 25, and pointing `JAVA_HOME` at it makes the Android build fail in `configureCMakeDebug` with `A restricted method in java.lang.System has been called`.
 

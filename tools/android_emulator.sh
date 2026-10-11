@@ -1,7 +1,8 @@
 #!/bin/bash
 # Starts or stops the Android emulator for the demo, together with what the local Uptick API needs.
 # start: boots the AVD (AVD=Pixel_10a by default), forwards Metro's port, runs tools/resolver_proxy.py and points the emulator at it,
-#   then stays in the foreground streaming the proxy log until the emulator exits or the script is interrupted, and stops everything on the way out.
+#   then stays in the foreground until the emulator exits or the script is interrupted, and stops everything on the way out.
+#   It streams the proxy log only when it started the proxy itself; an adopted proxy's output stays in the terminal that started it.
 # stop: clears the emulator's proxy setting first (it has no network while the setting outlives the proxy), then stops the proxy and the emulator.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -40,6 +41,7 @@ ensure_proxy() {
 
   nohup python3 tools/resolver_proxy.py "$PROXY_PORT" >"$STATE_DIR/resolver_proxy.log" 2>&1 &
   pid=$!
+  PROXY_LAUNCHED=1
   echo "$pid" >"$STATE_DIR/resolver_proxy.pid"
   for _ in $(seq 1 20); do
     [ "$(proxy_listener_pid)" = "$pid" ] && return
@@ -53,6 +55,7 @@ ensure_proxy() {
 
 start() {
   # Before booting, so a port conflict fails fast.
+  PROXY_LAUNCHED=0
   ensure_proxy
 
   if ! emulator_running; then
@@ -72,10 +75,14 @@ start() {
   [ "$(proxy_listener_pid)" = "$(cat "$STATE_DIR/resolver_proxy.pid")" ] || { echo "Resolver proxy is no longer listening on $PROXY_PORT; see $STATE_DIR/resolver_proxy.log" >&2; exit 1; }
   adb shell settings put global http_proxy "10.0.2.2:$PROXY_PORT"
 
-  echo "$ANDROID_SERIAL ready: Metro on 8081 forwarded, proxy 10.0.2.2:$PROXY_PORT (log: $STATE_DIR/resolver_proxy.log)"
-
-  tail -n 0 -f "$STATE_DIR/resolver_proxy.log" &
-  TAIL_PID=$!
+  # Only a proxy this script started writes the log file; an adopted one logs to the terminal that started it.
+  if [ "$PROXY_LAUNCHED" = 1 ]; then
+    echo "$ANDROID_SERIAL ready: Metro on 8081 forwarded, proxy 10.0.2.2:$PROXY_PORT (log: $STATE_DIR/resolver_proxy.log)"
+    tail -n 0 -f "$STATE_DIR/resolver_proxy.log" &
+    TAIL_PID=$!
+  else
+    echo "$ANDROID_SERIAL ready: Metro on 8081 forwarded, proxy 10.0.2.2:$PROXY_PORT (already running; its output is in the terminal that started it)"
+  fi
   while emulator_running; do
     sleep 2
   done
