@@ -90,6 +90,7 @@ Everything is available from VS Code's **Tasks: Run Task**; each task runs a scr
 | Android: Build and install dev app | `tools/android_dev_build.sh` | Builds the app with puma-dev's CA built in and installs it. Needed for the local API on Android |
 | Android: Regenerate native project and rebuild | `CLEAN=1 tools/android_dev_build.sh` | Recreates `android/` from `app.json`, config plugins and the Expo version, then builds and installs. Use after changing any of those |
 | Android: Stop emulator | `tools/android_emulator.sh stop` | Clears the emulator's proxy setting, then stops the proxy and the emulator |
+| Web: Serve demo page | `tools/web.sh` | Serves the [browser page](#web-browser) on port 8090 (`WEB_PORT=` to change) and opens it. Stays running; ending the task stops the server |
 
 **Metro and the Android proxy start when the folder opens**, and the device tasks don't start Metro for you, so leave Metro running. VS Code asks once whether to allow automatic tasks on folder open; accept it, or they won't start on load. Run **SDK: npm link** or **SDK: npm unlink** and they restart Metro for you.
 
@@ -116,6 +117,16 @@ On first launch, Expo Go shows a developer menu introduction over the app; tap *
 Use the Metro terminal's keys rather than a second `npx expo start --ios` or `--android`: a second Expo CLI finds port 8081 taken and stops at "Use port 8082 instead?". The keys don't work when **Start Metro** reused a Metro that was already running (it says `Metro already running on 8081; using it`); press them in that Metro's own terminal instead.
 
 On a fresh launch the events panel often shows `webview_error net::ERR_NAME_NOT_RESOLVED`; tap **Reload**. See [Troubleshooting](#troubleshooting) for why.
+
+### Web (browser)
+
+The Expo app doesn't run on web: the SDK renders through `react-native-webview`, which has no browser implementation. Instead, `web/index.html` shows the same order confirmation with the Uptick web SDK installed the way a publisher site installs it ([docs](https://docs.uptick.com/publishers/web)). It doesn't use the React Native SDK at all, so use it to check an integration and placement on their own, and to tell an integration problem from a WebView problem.
+
+Run **Web: Serve demo page**. It writes `web/config.js` from `.env.local`, so the chips load the same integrations and placements as the app's; rerun it after editing `.env.local`. The page takes the same [launch parameters](#launch-parameters) in its URL, e.g. `http://localhost:8090/?target=popup&host=api.uptick.com&id=<integration id>`. `offers.js` is loaded from the API host with `api.` swapped for `app.`; add `script_host=` to override that.
+
+Against a local Uptick API, nothing extra is needed in Safari or Chrome: the Mac resolves `*.uptick.test`, and both browsers trust puma-dev's CA through the keychain. Firefox keeps its own certificate store, so import the CA there or use another browser.
+
+The events panel and status line work as in the app, and each event also prints in the browser console as `[uptick-demo] web …`. A `script_error` means `offers.js` didn't load (unknown integration id, or an untrusted certificate); `js_error Uptick Error: … Uptick Network Error` usually means the integration has no such placement.
 
 ### Without VS Code
 
