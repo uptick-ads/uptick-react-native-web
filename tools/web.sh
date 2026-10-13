@@ -40,6 +40,7 @@ print("window.UPTICK_DEMO_CONFIG = " + json.dumps(config, indent=2) + ";")
 EOF
   echo "Wrote web/config.js from .env.local"
 else
+  rm -f web/config.js
   echo "No .env.local; the page needs ?id=<integration id> in its URL (see README)" >&2
 fi
 
