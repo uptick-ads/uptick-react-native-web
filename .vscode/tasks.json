@@ -160,6 +160,25 @@
           "endsPattern": "Logs for your project will appear below|LOG\\s+\\[uptick-demo\\]"
         }
       }
+    },
+    {
+      "label": "Web: Serve demo page",
+      "detail": "Serve web/index.html, the browser page that uses the Uptick web SDK directly, on 8090 and open it; runs until terminated",
+      "type": "shell",
+      "command": "${workspaceFolder}/tools/web.sh",
+      "runOptions": {
+        "instanceLimit": 1 // Prevents multiple instances getting stuck
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "web-demo",
+        "pattern": { "regexp": "^__never_matches__(.)(.)(.)$", "file": 1, "location": 2, "message": 3 },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "^__never_matches__$",
+          "endsPattern": "web demo serving on"
+        }
+      }
     }
   ]
 }

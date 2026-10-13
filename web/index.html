@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Uptick Demo (web)</title>
+  <!--
+    Browser counterpart of App.js: the same mock order confirmation, with the Uptick web SDK installed the way a publisher site
+    installs it (docs.uptick.com/publishers/web) instead of the React Native SDK's WebView. Whether the placement renders inline or
+    as a popup is decided by its template on the Uptick side, exactly as in the app.
+  -->
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #27272a; }
+    main { max-width: 560px; margin: 0 auto; padding: 16px 16px 48px; }
+    .brand { font-size: 13px; letter-spacing: 2px; text-transform: uppercase; color: #71717a; margin-bottom: 8px; }
+    h1 { font-size: 28px; font-weight: 700; color: #18181b; margin: 0; }
+    .sub { font-size: 15px; color: #52525b; margin: 6px 0 16px; line-height: 21px; }
+    .card { background: #fff; border-radius: 12px; padding: 16px; margin-bottom: 16px; border: 1px solid #e4e4e7; font-size: 15px; }
+    .card-title { font-size: 13px; font-weight: 600; color: #71717a; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 1px; }
+    .row { display: flex; justify-content: space-between; padding: 4px 0; }
+    .bold { font-weight: 700; }
+    .muted { font-size: 13px; color: #71717a; margin-top: 6px; }
+    .slot { margin-bottom: 16px; }
+    .controls { background: #fff; border-radius: 12px; padding: 12px; margin-bottom: 16px; border: 1px solid #e4e4e7; }
+    .controls-title { font-size: 12px; font-weight: 700; color: #3f3f46; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
+    .log .controls-title { color: #e2e8f0; }
+    .controls-meta { font-size: 12px; color: #71717a; margin-top: 8px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip { padding: 6px 10px; border-radius: 999px; border: 1px solid #d4d4d8; background: #fafafa; font-size: 12px; color: #27272a; cursor: pointer; }
+    .chip.active { background: #18181b; border-color: #18181b; color: #fff; }
+    .log { background: #0f172a; border-radius: 12px; padding: 12px; }
+    .log-line { font-family: Menlo, monospace; font-size: 10px; color: #e2e8f0; margin-bottom: 3px; word-break: break-all; }
+  </style>
+  <!-- Written by tools/web.sh from .env.local; when it's missing the page falls back to the defaults below and the URL's parameters. -->
+  <script src="config.js"></script>
+</head>
+<body>
+  <main>
+    <div class="brand">Summit Gear Co.</div>
+    <h1>Thanks, <span id="first-name"></span>!</h1>
+    <p class="sub">Order <span id="order-id"></span> is confirmed. A receipt is on its way to your inbox.</p>
+
+    <div class="card">
+      <div class="row"><span>Trail Runner Jacket x2</span><span>$64.00</span></div>
+      <div class="row"><span>Merino Crew Socks x1</span><span>$19.01</span></div>
+      <div class="row"><span>Shipping</span><span id="shipping-price"></span></div>
+      <div class="row bold"><span>Total</span><span id="total-price"></span></div>
+    </div>
+
+    <!-- One mount point. Inline placements render here; popup placements present the web SDK's own modal over the page. -->
+    <div id="uptick-offers" data-uptick-target="content" class="uptick-target slot"></div>
+
+    <div class="card">
+      <div class="card-title">Shipping to</div>
+      <div>742 Evergreen Terrace</div>
+      <div>Springfield, IL <span id="zip"></span></div>
+      <div class="muted">Estimated delivery: 5 to 10 business days</div>
+    </div>
+
+    <div class="controls">
+      <div class="controls-title">Demo controls</div>
+      <div class="chips" id="chips"></div>
+      <div class="controls-meta" id="meta"></div>
+    </div>
+
+    <div class="log">
+      <div class="controls-title">Events (newest first)</div>
+      <div id="events"><div class="log-line">waiting for the SDK...</div></div>
+    </div>
+  </main>
+
+  <script>
+  (function () {
+    var config = window.UPTICK_DEMO_CONFIG || {};
+
+    var DEFAULT_HOST = config.host || "api.uptick.com";
+
+    // Same two targets as App.js, filled from .env.local by tools/web.sh.
+    var TARGETS = [
+      { key: "inline", label: "Inline placement", integrationId: "", placement: "checkout" },
+      { key: "popup", label: "Popup placement", integrationId: "", placement: "order_confirmation" },
+    ].map(function (t) {
+      var override = (config.targets || {})[t.key] || {};
+      return {
+        key: t.key,
+        label: t.label,
+        integrationId: override.integrationId || t.integrationId,
+        placement: override.placement || t.placement,
+      };
+    });
+
+    var ORDER = {
+      first_name: "Nate",
+      total_price: "$89.00",
+      shipping_price: "$5.99",
+      currency: "USD",
+      order_id: "SGC-1847",
+      zip: "62704",
+      customer_id: "demo-customer-1",
+    };
+
+    // Same overrides as the app's launch URL: ?target=popup&host=api.example.test&id=<integration id>&placement=order_confirmation
+    // `script_host` overrides where offers.js comes from; by default it's the API host with `api.` swapped for `app.`.
+    var query = new URLSearchParams(location.search);
+    var targetKey = TARGETS.some(function (t) { return t.key === query.get("target"); }) ? query.get("target") : "inline";
+    var target = TARGETS.find(function (t) { return t.key === targetKey; });
+    var host = query.get("host") || DEFAULT_HOST;
+    var scriptHost = query.get("script_host") || host.replace(/^api\./, "app.");
+    var integrationId = query.get("id") || target.integrationId;
+    var placement = query.get("placement") || target.placement;
+    var renderedType = null;
+    var mountedAt = Date.now();
+    var firstOfferAt = null;
+
+    ["first_name", "order_id", "shipping_price", "total_price", "zip"].forEach(function (key) {
+      document.getElementById(key.replace("_", "-")).textContent = ORDER[key];
+    });
+
+    function clock(t) {
+      var d = new Date(t);
+      return String(d.getMinutes()).padStart(2, "0") + ":" + String(d.getSeconds()).padStart(2, "0") + "." + String(d.getMilliseconds()).padStart(3, "0");
+    }
+
+    var events = [];
+    function log(name, data) {
+      console.log("[uptick-demo] web " + name + " " + (data == null ? "" : JSON.stringify(data)));
+      events = [{ t: Date.now(), name: name, data: data }].concat(events).slice(0, 60);
+      var list = document.getElementById("events");
+      list.textContent = "";
+      events.forEach(function (e) {
+        var line = document.createElement("div");
+        line.className = "log-line";
+        line.textContent = clock(e.t) + " " + e.name + " " + (e.data == null ? "" : typeof e.data === "string" ? e.data : JSON.stringify(e.data));
+        list.appendChild(line);
+      });
+    }
+
+    function renderMeta() {
+      document.getElementById("meta").textContent =
+        "web · " + host + " · " + (integrationId ? integrationId.slice(0, 8) : "no integration id") + " · " + placement + " · rendered " + (renderedType || "...");
+    }
+
+    // Each chip reloads the page: the web SDK has no teardown, so a fresh page is the only clean restart. Switching targets drops the URL's overrides, as in the app.
+    function chip(label, active, onClick) {
+      var button = document.createElement("button");
+      button.className = "chip" + (active ? " active" : "");
+      button.textContent = label;
+      button.onclick = onClick;
+      document.getElementById("chips").appendChild(button);
+    }
+    TARGETS.forEach(function (t) {
+      chip(t.label, t.key === targetKey, function () {
+        var next = new URLSearchParams();
+        next.set("target", t.key);
+        if (query.get("host")) next.set("host", query.get("host"));
+        if (query.get("script_host")) next.set("script_host", query.get("script_host"));
+        location.search = next.toString();
+      });
+    });
+    chip("Reload", false, function () { location.reload(); });
+    renderMeta();
+
+    // The SDK reports flow failures (422 for an unknown placement, network errors) only through console.error, so surface them in the panel.
+    var originalError = console.error;
+    console.error = function () {
+      log("js_error", Array.prototype.map.call(arguments, String).join(" "));
+      originalError.apply(console, arguments);
+    };
+
+    // The wrapper class says which presentation is on screen, the same check the embed page makes for the React Native SDK.
+    function reportRenderType() {
+      var content = document.getElementById("uptick-offers");
+      var rendered = content.querySelector(".uptick-popup") ? "popup" : content.querySelector(".uptick-inline, [data-uptick-render-type]") ? "inline" : null;
+      if (!rendered || rendered === renderedType) return;
+      renderedType = rendered;
+      renderMeta();
+      log("render_type", { rendered: rendered });
+    }
+
+    function callback(event, data) {
+      if (event === "offer_viewed" && firstOfferAt == null) {
+        firstOfferAt = Date.now();
+        log("time_to_first_offer_ms", firstOfferAt - mountedAt);
+      }
+      log(event, data);
+      if (event === "offer_viewed") reportRenderType();
+    }
+
+    if (!integrationId) {
+      log("config_error", "no integration id; run tools/web.sh, or add ?id=<integration id> to the URL");
+      return;
+    }
+
+    var params = { placement: placement };
+    Object.keys(ORDER).forEach(function (key) { params[key] = ORDER[key]; });
+
+    // The docs pass order details to init, but offers.js only reads placement from there; everything else it looks up on window.uptickParams, which is also what the embed page sets.
+    window.uptickParams = params;
+
+    // The publisher snippet from the docs: load offers.js for the integration, then start the flow in the mount point.
+    window.UptickScript = new Promise(function (resolve, reject) {
+      var script = document.createElement("script");
+      script.id = "uptick-script";
+      script.type = "text/javascript";
+      script.async = true;
+      script.src = "https://" + scriptHost + "/i/places/" + encodeURIComponent(integrationId) + "/offers.js?path=" + encodeURIComponent(location.pathname) + "&async=true";
+      script.addEventListener("load", resolve);
+      script.addEventListener("error", reject);
+      (document.head || document.body).appendChild(script);
+    });
+
+    window.UptickScript.then(
+      function () {
+        log("sdk_loaded", { ms: Date.now() - mountedAt });
+        window.uptick("init", document.getElementById("uptick-offers"), params, callback);
+      },
+      function () {
+        log("script_error", "offers.js failed to load from " + scriptHost + "; check the integration id, and that the browser trusts the host's certificate");
+      }
+    );
+  })();
+  </script>
+</body>
+</html>
