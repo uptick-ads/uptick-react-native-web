@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Linking, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from "react-native";
+import { Linking, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { UptickFlow } from "@uptick-ads/react-native-web-sdk";
 
@@ -111,6 +111,16 @@ function Demo() {
     return () => subscription.remove();
   }, [log, reset]);
 
+  // The Demo controls' text fields; they refill whenever a chip, launch URL or Apply changes what's loaded.
+  const [draft, setDraft] = useState({ integrationId, placement });
+  useEffect(() => setDraft({ integrationId, placement }), [integrationId, placement]);
+
+  // Same overrides as the launch URL; a cleared field falls back to the selected target's value.
+  const applyDraft = useCallback(() => {
+    setOverrides({ integrationId: draft.integrationId.trim() || null, placement: draft.placement.trim() || null });
+    reset();
+  }, [draft, reset]);
+
   const callback = useCallback(
     (event, data) => {
       if (event === "offer_viewed" && firstOfferAt.current == null) {
@@ -127,7 +137,7 @@ function Demo() {
     <View style={styles.root}>
       <StatusBar barStyle="dark-content" />
       <SafeAreaView style={styles.safe} edges={["top"]}>
-        <ScrollView style={styles.screen} contentContainerStyle={styles.screenContent} nestedScrollEnabled>
+        <ScrollView style={styles.screen} contentContainerStyle={styles.screenContent} nestedScrollEnabled keyboardShouldPersistTaps="handled">
           <Text style={styles.brand}>Summit Gear Co.</Text>
           <Text style={styles.h1}>Thanks, {ORDER.first_name}!</Text>
           <Text style={styles.sub}>Order {ORDER.order_id} is confirmed. A receipt is on its way to your inbox.</Text>
@@ -165,6 +175,29 @@ function Demo() {
                 <Chip key={t.key} active={t.key === targetKey} label={t.label} onPress={() => reset(t.key)} />
               ))}
               <Chip label="Reload" onPress={() => reset()} />
+            </View>
+            <Text style={styles.inputLabel}>Integration ID</Text>
+            <TextInput
+              style={[styles.input, styles.mono]}
+              value={draft.integrationId}
+              onChangeText={(value) => setDraft((d) => ({ ...d, integrationId: value }))}
+              onSubmitEditing={applyDraft}
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="go"
+            />
+            <Text style={styles.inputLabel}>Placement</Text>
+            <TextInput
+              style={styles.input}
+              value={draft.placement}
+              onChangeText={(value) => setDraft((d) => ({ ...d, placement: value }))}
+              onSubmitEditing={applyDraft}
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="go"
+            />
+            <View style={[styles.chips, styles.applyRow]}>
+              <Chip label="Apply" onPress={applyDraft} />
             </View>
             <Text style={styles.controlsMeta}>
               {Platform.OS} · {host} · {integrationId ? integrationId.slice(0, 8) : "no integration id"} · {placement} · rendered {renderedType || "..."}
@@ -227,6 +260,10 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: "#18181b", borderColor: "#18181b" },
   chipText: { fontSize: 12, color: "#27272a" },
   chipTextActive: { color: "#fff" },
+  inputLabel: { fontSize: 11, fontWeight: "600", color: "#71717a", marginTop: 10, marginBottom: 4 },
+  input: { borderWidth: 1, borderColor: "#d4d4d8", borderRadius: 8, backgroundColor: "#fafafa", paddingHorizontal: 10, paddingVertical: 6, fontSize: 13, color: "#18181b" },
+  mono: { fontFamily: Platform.select({ ios: "Menlo", android: "monospace" }), fontSize: 12 },
+  applyRow: { marginTop: 8 },
   log: { backgroundColor: "#0f172a", borderRadius: 12, padding: 12 },
   logLine: { fontFamily: Platform.select({ ios: "Menlo", android: "monospace" }), fontSize: 10, color: "#e2e8f0", marginBottom: 3 },
 });
