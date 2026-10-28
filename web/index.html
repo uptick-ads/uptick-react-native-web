@@ -29,6 +29,10 @@
     .chips { display: flex; flex-wrap: wrap; gap: 6px; }
     .chip { padding: 6px 10px; border-radius: 999px; border: 1px solid #d4d4d8; background: #fafafa; font-size: 12px; color: #27272a; cursor: pointer; }
     .chip.active { background: #18181b; border-color: #18181b; color: #fff; }
+    .input-label { display: block; font-size: 11px; font-weight: 600; color: #71717a; margin: 10px 0 4px; }
+    .input { width: 100%; border: 1px solid #d4d4d8; border-radius: 8px; background: #fafafa; padding: 6px 10px; font-size: 13px; color: #18181b; }
+    .input.mono { font-family: Menlo, monospace; font-size: 12px; }
+    .apply-row { margin-top: 8px; }
     .log { background: #0f172a; border-radius: 12px; padding: 12px; }
     .log-line { font-family: Menlo, monospace; font-size: 10px; color: #e2e8f0; margin-bottom: 3px; word-break: break-all; }
   </style>
@@ -61,6 +65,13 @@
     <div class="controls">
       <div class="controls-title">Demo controls</div>
       <div class="chips" id="chips"></div>
+      <form id="draft">
+        <label class="input-label" for="draft-id">Integration ID</label>
+        <input class="input mono" id="draft-id" autocapitalize="none" autocomplete="off" spellcheck="false">
+        <label class="input-label" for="draft-placement">Placement</label>
+        <input class="input" id="draft-placement" autocapitalize="none" autocomplete="off" spellcheck="false">
+        <div class="chips apply-row"><button class="chip" type="submit">Apply</button></div>
+      </form>
       <div class="controls-meta" id="meta"></div>
     </div>
 
@@ -160,6 +171,22 @@
     });
     chip("Reload", false, function () { location.reload(); });
     renderMeta();
+
+    // Apply reloads with the fields as ?id= and ?placement=, the same overrides as the launch URL; a cleared field falls back to the selected target's value.
+    var draftId = document.getElementById("draft-id");
+    var draftPlacement = document.getElementById("draft-placement");
+    draftId.value = integrationId;
+    draftPlacement.value = placement;
+    document.getElementById("draft").onsubmit = function (event) {
+      event.preventDefault();
+      var next = new URLSearchParams();
+      next.set("target", targetKey);
+      if (query.get("host")) next.set("host", query.get("host"));
+      if (query.get("script_host")) next.set("script_host", query.get("script_host"));
+      if (draftId.value.trim()) next.set("id", draftId.value.trim());
+      if (draftPlacement.value.trim()) next.set("placement", draftPlacement.value.trim());
+      location.search = next.toString();
+    };
 
     // The SDK reports flow failures (422 for an unknown placement, network errors) only through console.error, so surface them in the panel.
     var originalError = console.error;

@@ -61,13 +61,13 @@ npm install
 cp .env.example .env.local
 ```
 
-Then edit `.env.local`:
+The example works as is against a [local Uptick API](#testing-against-a-local-uptick-api) running the platform's seed data: Northbound Outfitters for the popup chip and Pawsome Pet Supply for the inline chip. To use other integrations, edit `.env.local`:
 
 | Variable | Value |
 | --- | --- |
 | `EXPO_PUBLIC_UPTICK_HOST` | API host, e.g. `api.uptick.test` for a local Uptick API ([below](#testing-against-a-local-uptick-api)) |
 | `EXPO_PUBLIC_UPTICK_INTEGRATION_ID` | An integration's public id ([how to choose](#choosing-an-integration-and-placements)) |
-| `EXPO_PUBLIC_UPTICK_INLINE_PLACEMENT` | A placement that integration actually has, usually `order_confirmation`. The example's `checkout` doesn't exist in the local seed data and returns a 422 |
+| `EXPO_PUBLIC_UPTICK_INLINE_PLACEMENT` | A placement that integration actually has, usually `order_confirmation`; anything else returns a 422 |
 | `EXPO_PUBLIC_UPTICK_POPUP_PLACEMENT` | Same, for the popup chip |
 | `EXPO_PUBLIC_UPTICK_INLINE_INTEGRATION_ID` / `EXPO_PUBLIC_UPTICK_POPUP_INTEGRATION_ID` | Optional; set when the inline and popup placements live on different integrations |
 
@@ -162,6 +162,8 @@ adb shell am start -a android.intent.action.VIEW -d "exp://127.0.0.1:8081/--/?ta
 
 `target` is `inline` or `popup`; `host`, `id` and `placement` override the API host, integration id and placement for that session.
 
+The integration id and placement can also be changed on screen: edit the **Integration ID** and **Placement** fields under the chips and tap **Apply** (or press return). It loads the offer with those values, the same overrides `id` and `placement` set. A cleared field falls back to the selected chip's value, and tapping a chip goes back to its `.env.local` values. The [browser page](#web-browser) has the same fields; there, Apply reloads the page with `?id=` and `?placement=`.
+
 ### Reading the app's events
 
 The events panel at the bottom of the screen shows what the SDK did, newest first. The status line under the chips shows the integration and placement in use and ends in `rendered inline` or `rendered popup` once an offer shows. The same events print in Metro's terminal as `LOG  [uptick-demo] …`, and on iOS also land in the simulator log:
@@ -224,6 +226,8 @@ EXPO_PUBLIC_UPTICK_INLINE_PLACEMENT=order_confirmation
 EXPO_PUBLIC_UPTICK_POPUP_PLACEMENT=order_confirmation
 ```
 
+Glowbird Beauty (`0216d48f-d2b2-4035-a192-801968dae533`) is also in the seed data, with a public id pinned to the same value in every workspace. Its `order_confirmation` placement uses Web Template v1.3 (Inline) by default and has a React Native alternate, Web Template v1.3 (Popup), which the platform selects only for SDK builds that send `integration_type=react_native`. Paste its id into **Integration ID** to try it without editing `.env.local`.
+
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
@@ -233,7 +237,9 @@ EXPO_PUBLIC_UPTICK_POPUP_PLACEMENT=order_confirmation
 | Expo stops at `Use port 8082 instead? (Y/n)` | A second Expo CLI was started while Metro holds 8081, e.g. `npx expo start --ios` next to the Start Metro task | Press `i` or `a` in the running Metro's terminal instead, or stop it first: `lsof -ti tcp:8081 \| xargs kill` |
 | Start Metro says port 8081 is held by something other than this project's Metro | Another project's Metro, or another server, is on 8081 | Stop it: `lsof -ti tcp:8081 \| xargs kill`, then rerun the task |
 | **iOS: Open app in Expo Go** says Expo CLI hasn't downloaded Expo Go yet | First run on this Mac | Press `i` in the Start Metro terminal once |
-| Edits to `.env.local` have no effect | Expo reads it only at startup | Restart Metro |
+| Edits to `.env.local` have no effect | Expo reads it only at startup | Restart Metro, then reload the app's JavaScript (`r` in the Metro terminal). The in-app **Reload** only remounts the offer |
+| Android: requests still show an old integration id or `integration_version` | The app process is still running a bundle it loaded earlier and can't reach Metro (`adb logcat` shows `Couldn't connect to "ws://10.0.2.2:8081/…"`) | `adb reverse tcp:8081 tcp:8081`, then `adb shell am force-stop com.anonymous.rnwebviewdemo` and relaunch |
+| iOS or Android: `[runtime not ready]: TypeError: property is not writable` at launch | Two copies of React Native in the bundle, usually from a linked SDK checkout | Restart Metro with `--clear` so `metro.config.js` applies; see [Working on the SDK](#working-on-the-sdk-and-the-demo-together) |
 | Edits to the code don't reload | Metro was started with `CI=1`, which disables watching | Restart it with a plain `npx expo start` |
 | `npx: command not found` from a task or script | The shell didn't load mise | `tools/metro.sh` adds mise's shims itself; elsewhere, check `eval "$(mise activate zsh)"` is in `~/.zshrc` |
 | Android build fails in `configureCMakeDebug` with `A restricted method in java.lang.System has been called` | Building with Android Studio's JDK 25 | Use JDK 17 or 21 (setup step 1); `tools/android_dev_build.sh` picks mise's `temurin-21` when `JAVA_HOME` is unset |
@@ -255,7 +261,7 @@ EXPO_PUBLIC_UPTICK_POPUP_PLACEMENT=order_confirmation
 
 To run the demo against a local checkout of the SDK, use the **SDK: npm link** task. It expects the checkout at `../react-native-web-sdk` (set `SDK_DIR=` to use another path), runs `npm link` in the checkout and then in this app, and restarts Metro with `--clear` so the new resolution takes effect. **SDK: npm unlink** removes the link and restores the registry copy pinned in `package-lock.json`, then restarts Metro the same way.
 
-A linked checkout brings its own `node_modules`, including its own copies of `react` and `react-native`, which can differ from the app's versions. If the app shows hook errors or a native view registered twice after linking, the two copies are the likely cause; the fix is to remove the SDK checkout's `node_modules` copies of those packages, or to keep the SDK's self-dependency out of its `package.json`. Unlink when you're done to go back to the pinned registry copy.
+A linked checkout brings its own `node_modules`, including its own copies of `react`, `react-native` and `react-native-webview` for its tests, which can differ from the app's versions. Bundling a second React Native fails at startup with `[runtime not ready]: TypeError: property is not writable`, so `metro.config.js` always resolves those three packages from this app. If a hook error or a native view registered twice shows up after linking, another package the SDK imports has a second copy; add it to `SINGLETONS` there. Unlink when you're done to go back to the pinned registry copy.
 
 ## License
 
