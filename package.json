@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "dependencies": {
-    "@uptick-ads/react-native-web-sdk": "^0.3.2",
+    "@uptick-ads/react-native-web-sdk": "^0.4.1",
     "expo": "~57.0.24",
     "expo-status-bar": "~57.0.1",
     "react": "19.2.3",
@@ -18,5 +18,5 @@
     "web": "expo start --web"
   },
   "private": true,
-  "description": "Uptick React Native demo app using @uptick/react-native-web-sdk"
+  "description": "Uptick React Native demo app using @uptick-ads/react-native-web-sdk"
 }

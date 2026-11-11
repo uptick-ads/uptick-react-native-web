@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { Component, useCallback, useEffect, useRef, useState } from "react";
 import { Linking, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { UptickFlow } from "@uptick-ads/react-native-web-sdk";
@@ -9,6 +9,8 @@ import { UptickFlow } from "@uptick-ads/react-native-web-sdk";
 const DEFAULT_HOST = process.env.EXPO_PUBLIC_UPTICK_HOST || "api.uptick.com";
 
 const SHARED_INTEGRATION_ID = process.env.EXPO_PUBLIC_UPTICK_INTEGRATION_ID || "";
+// The publisher site events are attributed to; it has to be the integration's site domain for the platform to resolve it.
+const SHARED_SITE_URL = process.env.EXPO_PUBLIC_UPTICK_SITE_URL || "https://summitgear.example/order-confirmation";
 // Two placements to demonstrate both presentations: one whose template is inline, one whose template is a popup.
 const TARGETS = [
   {
@@ -16,12 +18,14 @@ const TARGETS = [
     label: "Inline placement",
     integrationId: process.env.EXPO_PUBLIC_UPTICK_INLINE_INTEGRATION_ID || SHARED_INTEGRATION_ID,
     placement: process.env.EXPO_PUBLIC_UPTICK_INLINE_PLACEMENT || "checkout",
+    siteUrl: process.env.EXPO_PUBLIC_UPTICK_INLINE_SITE_URL || SHARED_SITE_URL,
   },
   {
     key: "popup",
     label: "Popup placement",
     integrationId: process.env.EXPO_PUBLIC_UPTICK_POPUP_INTEGRATION_ID || SHARED_INTEGRATION_ID,
     placement: process.env.EXPO_PUBLIC_UPTICK_POPUP_PLACEMENT || "order_confirmation",
+    siteUrl: process.env.EXPO_PUBLIC_UPTICK_POPUP_SITE_URL || SHARED_SITE_URL,
   },
 ];
 
@@ -35,7 +39,7 @@ const ORDER = {
   customer_id: "demo-customer-1",
 };
 
-// Headless control for testing: exp://host:port/--/?target=popup&host=api.example.test&id=<integration id>&placement=order_confirmation
+// Headless control for testing: exp://host:port/--/?target=popup&host=api.example.test&id=<integration id>&placement=order_confirmation&site=https://www.example.com/
 function parseLaunchParams(url) {
   if (!url) return {};
   const query = url.split("?")[1];
@@ -46,6 +50,28 @@ function parseLaunchParams(url) {
     if (key) out[decodeURIComponent(key)] = decodeURIComponent(value || "");
   });
   return out;
+}
+
+function siteHost(url) {
+  const match = /^[a-z]+:\/\/([^/?#]+)/i.exec(url || "");
+  return match ? match[1] : "no site url";
+}
+
+// UptickFlow throws at render when integrationId or siteUrl is missing or malformed; this logs that instead of taking down the demo.
+class FlowBoundary extends Component {
+  state = { failed: false };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  componentDidCatch(error) {
+    this.props.onError(error);
+  }
+
+  render() {
+    return this.state.failed ? null : this.props.children;
+  }
 }
 
 function clock(t) {
@@ -66,12 +92,13 @@ function Demo() {
   const [targetKey, setTargetKey] = useState("inline");
   const [host, setHost] = useState(DEFAULT_HOST);
   // Launch-URL overrides for the current session; null means "use the selected target".
-  const [overrides, setOverrides] = useState({ integrationId: null, placement: null });
+  const [overrides, setOverrides] = useState({ integrationId: null, placement: null, siteUrl: null });
   const [renderedType, setRenderedType] = useState(null);
   const [customized, setCustomized] = useState(false);
   const target = TARGETS.find((t) => t.key === targetKey);
   const integrationId = overrides.integrationId || target.integrationId;
   const placement = overrides.placement || target.placement;
+  const siteUrl = overrides.siteUrl || target.siteUrl;
   const [reloadKey, setReloadKey] = useState(0);
   const [events, setEvents] = useState([]);
   const mountedAt = useRef(Date.now());
@@ -90,7 +117,7 @@ function Demo() {
     if (nextTarget) {
       setTargetKey(nextTarget);
       // Switching targets returns to that target's own placement; launch-URL overrides apply to one session only.
-      setOverrides({ integrationId: null, placement: null });
+      setOverrides({ integrationId: null, placement: null, siteUrl: null });
     }
     setReloadKey((k) => k + 1);
   }, []);
@@ -99,12 +126,15 @@ function Demo() {
     const apply = (url) => {
       const params = parseLaunchParams(url);
       const key = params.target;
-      if (!key && !params.host && !params.id && !params.placement) return;
+      if (!key && !params.host && !params.id && !params.placement && !params.site) return;
       log("launch_params", params);
       if (params.host) setHost(params.host);
       if (params.custom != null) setCustomized(params.custom === "1");
-      if (params.id || params.placement) setOverrides({ integrationId: params.id || null, placement: params.placement || null });
+      // After reset, which clears overrides when switching targets, so `target` combines with `id`, `placement` and `site`.
       reset(TARGETS.some((t) => t.key === key) ? key : null);
+      if (params.id || params.placement || params.site) {
+        setOverrides({ integrationId: params.id || null, placement: params.placement || null, siteUrl: params.site || null });
+      }
     };
     Linking.getInitialURL().then(apply);
     const subscription = Linking.addEventListener("url", ({ url }) => apply(url));
@@ -112,12 +142,16 @@ function Demo() {
   }, [log, reset]);
 
   // The Demo controls' text fields; they refill whenever a chip, launch URL or Apply changes what's loaded.
-  const [draft, setDraft] = useState({ integrationId, placement });
-  useEffect(() => setDraft({ integrationId, placement }), [integrationId, placement]);
+  const [draft, setDraft] = useState({ integrationId, placement, siteUrl });
+  useEffect(() => setDraft({ integrationId, placement, siteUrl }), [integrationId, placement, siteUrl]);
 
   // Same overrides as the launch URL; a cleared field falls back to the selected target's value.
   const applyDraft = useCallback(() => {
-    setOverrides({ integrationId: draft.integrationId.trim() || null, placement: draft.placement.trim() || null });
+    setOverrides({
+      integrationId: draft.integrationId.trim() || null,
+      placement: draft.placement.trim() || null,
+      siteUrl: draft.siteUrl.trim() || null,
+    });
     reset();
   }, [draft, reset]);
 
@@ -150,16 +184,18 @@ function Demo() {
           </View>
 
           {/* One mount point. Inline placements render here; popup placements present a modal over the screen from this same spot. */}
-          <UptickFlow
-            key={`${host}-${integrationId}-${placement}-${customized}-${reloadKey}`}
-            integrationId={integrationId}
-            placement={placement}
-            host={host}
-            callback={callback}
-            style={styles.slot}
-            modal={customized ? { backgroundColor: "rgba(20, 40, 80, 0.6)", insets: { top: insets.top + 16, bottom: insets.bottom + 16 } } : undefined}
-            {...ORDER}
-          />
+          <FlowBoundary key={`${host}-${integrationId}-${placement}-${siteUrl}-${customized}-${reloadKey}`} onError={(error) => log("render_error", error.message)}>
+            <UptickFlow
+              integrationId={integrationId}
+              siteUrl={siteUrl}
+              placement={placement}
+              host={host}
+              callback={callback}
+              style={styles.slot}
+              modal={customized ? { backgroundColor: "rgba(20, 40, 80, 0.6)", insets: { top: insets.top + 16, bottom: insets.bottom + 16 } } : undefined}
+              {...ORDER}
+            />
+          </FlowBoundary>
 
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Shipping to</Text>
@@ -196,11 +232,22 @@ function Demo() {
               autoCorrect={false}
               returnKeyType="go"
             />
+            <Text style={styles.inputLabel}>Site URL</Text>
+            <TextInput
+              style={styles.input}
+              value={draft.siteUrl}
+              onChangeText={(value) => setDraft((d) => ({ ...d, siteUrl: value }))}
+              onSubmitEditing={applyDraft}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+              returnKeyType="go"
+            />
             <View style={[styles.chips, styles.applyRow]}>
               <Chip label="Apply" onPress={applyDraft} />
             </View>
             <Text style={styles.controlsMeta}>
-              {Platform.OS} · {host} · {integrationId ? integrationId.slice(0, 8) : "no integration id"} · {placement} · rendered {renderedType || "..."}
+              {Platform.OS} · {host} · {integrationId ? integrationId.slice(0, 8) : "no integration id"} · {placement} · {siteHost(siteUrl)} · rendered {renderedType || "..."}
             </Text>
           </View>
 
