@@ -1,6 +1,7 @@
 # Uptick React Native Demo
 
-This repository contains a small Expo app that shows the **Uptick React Native Web SDK** (`uptick-ads/react-native-web-sdk`) on a mock order-confirmation screen. One `UptickFlow` is mounted in the page flow; it renders inline or as a popup depending on the placement's template on the Uptick side.
+This repository contains a small Expo app that shows the **Uptick React Native Web SDK** (`@uptick-ads/react-native-web-sdk`) on a mock order-confirmation screen. One `UptickFlow` is mounted in the page flow; it renders inline or as a popup depending on the placement's template on the Uptick side.
+The app needs SDK 0.4.1 or later, which requires a `siteUrl` prop; the app sets it from [`EXPO_PUBLIC_UPTICK_SITE_URL`](#4-the-project).
 Use it to see the integration working end to end, to try the SDK against a test environment, and as a reference when wiring the component into your own app.
 
 Setup is a one-time pass through [One-time setup](#one-time-setup), then [Run the app](#run-the-app) each day. If something goes wrong, check [Troubleshooting](#troubleshooting) first; every entry there is a problem that has actually come up.
@@ -69,7 +70,9 @@ The example works as is against a [local Uptick API](#testing-against-a-local-up
 | `EXPO_PUBLIC_UPTICK_INTEGRATION_ID` | An integration's public id ([how to choose](#choosing-an-integration-and-placements)) |
 | `EXPO_PUBLIC_UPTICK_INLINE_PLACEMENT` | A placement that integration actually has, usually `order_confirmation`; anything else returns a 422 |
 | `EXPO_PUBLIC_UPTICK_POPUP_PLACEMENT` | Same, for the popup chip |
+| `EXPO_PUBLIC_UPTICK_SITE_URL` | The publisher site the SDK reports events against, e.g. `https://northboundoutfitters.example/order-confirmation`. It must be a full http(s) URL on the integration's site domain; `localhost` and IP addresses are rejected. Defaults to `https://summitgear.example/order-confirmation`, which loads offers but resolves no site |
 | `EXPO_PUBLIC_UPTICK_INLINE_INTEGRATION_ID` / `EXPO_PUBLIC_UPTICK_POPUP_INTEGRATION_ID` | Optional; set when the inline and popup placements live on different integrations |
+| `EXPO_PUBLIC_UPTICK_INLINE_SITE_URL` / `EXPO_PUBLIC_UPTICK_POPUP_SITE_URL` | Optional; set alongside a per-chip integration id so each chip reports its own publisher's site |
 
 Expo reads `.env.local` only when Metro starts, so restart Metro after editing it.
 
@@ -160,13 +163,13 @@ xcrun simctl openurl booted "exp://127.0.0.1:8081/--/?target=popup"             
 adb shell am start -a android.intent.action.VIEW -d "exp://127.0.0.1:8081/--/?target=popup" host.exp.exponent   # Android, Expo Go
 ```
 
-`target` is `inline` or `popup`; `host`, `id` and `placement` override the API host, integration id and placement for that session.
+`target` is `inline` or `popup`; `host`, `id`, `placement` and `site` override the API host, integration id, placement and site URL for that session. URL-encode `site` when it has its own query string.
 
-The integration id and placement can also be changed on screen: edit the **Integration ID** and **Placement** fields under the chips and tap **Apply** (or press return). It loads the offer with those values, the same overrides `id` and `placement` set. A cleared field falls back to the selected chip's value, and tapping a chip goes back to its `.env.local` values. The [browser page](#web-browser) has the same fields; there, Apply reloads the page with `?id=` and `?placement=`.
+The integration id, placement and site URL can also be changed on screen: edit the **Integration ID**, **Placement** and **Site URL** fields under the chips and tap **Apply** (or press return). It loads the offer with those values, the same overrides `id`, `placement` and `site` set. A cleared field falls back to the selected chip's value, and tapping a chip goes back to its `.env.local` values. The [browser page](#web-browser) has the **Integration ID** and **Placement** fields, and Apply there reloads the page with `?id=` and `?placement=`. It has no Site URL field, because the web SDK reports the page's own address as the site.
 
 ### Reading the app's events
 
-The events panel at the bottom of the screen shows what the SDK did, newest first. The status line under the chips shows the integration and placement in use and ends in `rendered inline` or `rendered popup` once an offer shows. The same events print in Metro's terminal as `LOG  [uptick-demo] …`, and on iOS also land in the simulator log:
+The events panel at the bottom of the screen shows what the SDK did, newest first. The status line under the chips shows the integration, placement and site host in use and ends in `rendered inline` or `rendered popup` once an offer shows. The same events print in Metro's terminal as `LOG  [uptick-demo] …`, and on iOS also land in the simulator log:
 
 ```
 xcrun simctl spawn booted log show --last 5m --style compact --predicate 'eventMessage CONTAINS "uptick-demo"'
@@ -224,6 +227,8 @@ EXPO_PUBLIC_UPTICK_INTEGRATION_ID=6566682a-1bec-57de-b0de-4142debba234          
 EXPO_PUBLIC_UPTICK_INLINE_INTEGRATION_ID=29927783-d2f2-5fc9-9e43-e1cd5e991a13   # Pawsome Pet Supply, Web Template 1.2 (Inline)
 EXPO_PUBLIC_UPTICK_INLINE_PLACEMENT=order_confirmation
 EXPO_PUBLIC_UPTICK_POPUP_PLACEMENT=order_confirmation
+EXPO_PUBLIC_UPTICK_SITE_URL=https://northboundoutfitters.example/order-confirmation
+EXPO_PUBLIC_UPTICK_INLINE_SITE_URL=https://pawsomepetsupply.example/order-confirmation
 ```
 
 Glowbird Beauty (`0216d48f-d2b2-4035-a192-801968dae533`) is also in the seed data, with a public id pinned to the same value in every workspace. Its `order_confirmation` placement uses Web Template v1.3 (Inline) by default and has a React Native alternate, Web Template v1.3 (Popup), which the platform selects only for SDK builds that send `integration_type=react_native`. Paste its id into **Integration ID** to try it without editing `.env.local`.
@@ -252,6 +257,8 @@ Glowbird Beauty (`0216d48f-d2b2-4035-a192-801968dae533`) is also in the seed dat
 | Android: no network in the emulator at all | The proxy setting outlived the proxy | `adb shell settings put global http_proxy :0`, or run **Android: Stop emulator** |
 | Android: "System UI isn't responding" dialog | The emulator is busy, typically while booting | Tap **Wait** |
 | `webview_http_error` with status 404 | The integration id doesn't exist on that host | [Choose an integration](#choosing-an-integration-and-placements) |
+| `render_error UptickFlow: siteUrl is required and must be a full http(s) URL…`, and no offer loads | The site URL is missing, has no scheme, includes credentials (`user:pass@`), or uses `localhost` or an IP address | Use a full URL on a domain, e.g. `https://northboundoutfitters.example/`, in `.env.local`, `site=` or the **Site URL** field |
+| Offers load but the platform's events have no publisher site | The site URL's domain isn't the integration's site domain | Set `EXPO_PUBLIC_UPTICK_SITE_URL` (or the per-chip variable) to a URL on that integration's domain |
 | `422 Integration placement not found` | The integration has no placement with that name, e.g. `checkout` | Use one it has, usually `order_confirmation` |
 | `dashboard.uptick.test` redirects to sign in | The dashboard needs a login | Sign in, or use the `psql` query above |
 | Metro: `TreeFS: Could not add directory node_modules/@uptick-ads/react-native-web-sdk … already exists in the file map as a file` | Metro's cached file map still has the package from a previous link or symlink | Run **SDK: npm unlink** (or **SDK: npm link**), which restarts Metro with `--clear`; or restart Metro with `npx expo start --clear` |
